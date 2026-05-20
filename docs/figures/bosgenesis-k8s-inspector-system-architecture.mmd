@@ -1,0 +1,77 @@
+flowchart LR
+    %% BOS Genesis Kubernetes Inspector MCP System Architecture
+
+    subgraph CLIENTS["Controlled Clients"]
+        CODEX["Codex / AI Agent<br/>MCP client"]
+        UI["BOS AI Studio<br/>n8n / curl"]
+    end
+
+    subgraph SERVICE["BOS Genesis K8s Inspector Service"]
+        MCP["MCP Server<br/>stdio tool surface"]
+        REST["FastAPI REST API<br/>X-API-Key protected"]
+        ROUTER["Tool / API Router<br/>normalized commands"]
+        OPS["Operation Layer<br/>list / apply / patch / delete / scale"]
+        VALIDATOR["Input Validator<br/>schema and manifest parse"]
+        POLICY["Namespace Guard<br/>Policy Engine"]
+    end
+
+    subgraph CONFIG["Policy And Configuration Boundary"]
+        SETTINGS["settings.yaml / .env<br/>namespace, auth, API key, OTLP endpoint"]
+        POLICY_FILE["policy.yaml<br/>allowed resources, blocked kinds, write controls"]
+    end
+
+    subgraph K8S["Kubernetes Namespace Boundary"]
+        K8S_CLIENT["Kubernetes Python Client<br/>in-cluster or kubeconfig auth"]
+        API["Kubernetes API Server<br/>namespaced requests only"]
+        RBAC["ServiceAccount<br/>Role + RoleBinding"]
+        NS[("Allowed Namespace<br/>bosgenesis only")]
+        ALLOWED["Allowed Resources<br/>pods, logs, deployments, services,<br/>ingresses, configmaps, events"]
+        BLOCKED["Blocked By Policy<br/>secrets, RBAC, nodes, namespaces,<br/>exec, port-forward, privileged pods"]
+    end
+
+    subgraph OBS["Audit And Observability"]
+        AUDIT["JSONL Audit Log<br/>actor, action, resource, decision, status"]
+        OTEL["OpenTelemetry Spans<br/>request, policy, k8s, audit, latency"]
+        SIGNOZ["SigNoz OTel Collector<br/>traces, logs, metrics"]
+    end
+
+    CODEX --> MCP
+    UI --> REST
+    MCP --> ROUTER
+    REST --> ROUTER
+    ROUTER --> OPS
+    OPS --> VALIDATOR
+    VALIDATOR --> POLICY
+    POLICY -->|allow / deny| OPS
+
+    SETTINGS --> POLICY
+    POLICY_FILE --> POLICY
+
+    OPS -->|validated operation| K8S_CLIENT
+    K8S_CLIENT --> API
+    API --> RBAC
+    RBAC --> NS
+    NS --> ALLOWED
+    POLICY -. reject + audit .-> BLOCKED
+
+    OPS -->|operation events| AUDIT
+    OPS -->|trace spans| OTEL
+    OTEL --> SIGNOZ
+
+    classDef client fill:#DBEAFE,stroke:#2563EB,color:#1E3A8A,stroke-width:2px
+    classDef rest fill:#E0F2FE,stroke:#0284C7,color:#075985,stroke-width:2px
+    classDef core fill:#F1F5F9,stroke:#475569,color:#334155,stroke-width:2px
+    classDef policy fill:#FFEDD5,stroke:#EA580C,color:#7C2D12,stroke-width:2px
+    classDef k8s fill:#DCFCE7,stroke:#16A34A,color:#166534,stroke-width:2px
+    classDef blocked fill:#FEE2E2,stroke:#DC2626,color:#7F1D1D,stroke-width:2px
+    classDef obs fill:#DBEAFE,stroke:#2563EB,color:#1E3A8A,stroke-width:2px
+    classDef signoz fill:#EDE9FE,stroke:#7C3AED,color:#4C1D95,stroke-width:2px
+
+    class CODEX,MCP client
+    class UI,REST rest
+    class ROUTER,OPS,VALIDATOR core
+    class POLICY,SETTINGS,POLICY_FILE policy
+    class K8S_CLIENT,API,RBAC,NS,ALLOWED k8s
+    class BLOCKED blocked
+    class AUDIT,OTEL obs
+    class SIGNOZ signoz

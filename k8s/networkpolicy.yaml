@@ -1,0 +1,21 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: bosgenesis-k8s-inspector-mcp
+  namespace: bosgenesis
+spec:
+  podSelector:
+    matchLabels:
+      app: bosgenesis-k8s-inspector-mcp
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - from:
+        - namespaceSelector: {}
+      ports:
+        - protocol: TCP
+          port: 8080
+  egress:
+    # Kubernetes API server and SigNoz collector rules may need adjustment depending on your CNI.
+    - {}

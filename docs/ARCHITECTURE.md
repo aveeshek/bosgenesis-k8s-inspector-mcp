@@ -1,0 +1,58 @@
+# Architecture
+
+```mermaid
+flowchart LR
+    Codex[Codex / AI Agent] --> MCP[BOS Genesis K8s Inspector MCP]
+    UI[BOS AI Studio / curl / n8n] --> API[REST API]
+    MCP --> CORE[Policy + Operation Layer]
+    API --> CORE
+    CORE --> AUDIT[Audit Logger]
+    CORE --> OTEL[OpenTelemetry]
+    CORE --> K8S[Kubernetes Python Client]
+    K8S --> RBAC[ServiceAccount + RoleBinding]
+    RBAC --> NS[(bosgenesis namespace only)]
+    OTEL --> SIGNOZ[SigNoz OTel Collector]
+```
+
+## Security boundary
+
+```mermaid
+flowchart TB
+    Request[Incoming request] --> CheckNS{Namespace == bosgenesis?}
+    CheckNS -- No --> Deny1[Reject + Audit]
+    CheckNS -- Yes --> CheckRes{Resource allowed?}
+    CheckRes -- No --> Deny2[Reject + Audit]
+    CheckRes -- Yes --> CheckKind{Cluster-scoped or blocked kind?}
+    CheckKind -- Yes --> Deny3[Reject + Audit]
+    CheckKind -- No --> CheckPod{Unsafe pod spec?}
+    CheckPod -- Yes --> Deny4[Reject + Audit]
+    CheckPod -- No --> Execute[Call Kubernetes API]
+    Execute --> Audit[Audit success/failure]
+```
+
+## Audit flow
+
+```mermaid
+sequenceDiagram
+    participant C as Codex
+    participant M as MCP/API
+    participant P as Policy Engine
+    participant K as Kubernetes API
+    participant A as Audit JSONL
+    participant S as SigNoz
+
+    C->>M: list/apply/patch/delete request
+    M->>P: validate namespace, resource, safety
+    P-->>M: allow or deny
+    M->>A: write started/denied event
+    alt allowed
+      M->>K: Kubernetes API call using namespace Role
+      K-->>M: result
+      M->>A: write success/failure event
+      M->>S: emit OpenTelemetry span
+      M-->>C: normalized response
+    else denied
+      M->>S: emit denied span
+      M-->>C: policy denied response
+    end
+```

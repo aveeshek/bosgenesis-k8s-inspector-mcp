@@ -1,0 +1,13 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: bosgenesis-k8s-inspector-mcp-rolebinding
+  namespace: bosgenesis
+subjects:
+  - kind: ServiceAccount
+    name: bosgenesis-k8s-inspector-mcp
+    namespace: bosgenesis
+roleRef:
+  kind: Role
+  name: bosgenesis-k8s-inspector-mcp-role
+  apiGroup: rbac.authorization.k8s.io

@@ -1,0 +1,95 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: bosgenesis-k8s-inspector-mcp
+  namespace: bosgenesis
+  labels:
+    app: bosgenesis-k8s-inspector-mcp
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: bosgenesis-k8s-inspector-mcp
+  template:
+    metadata:
+      labels:
+        app: bosgenesis-k8s-inspector-mcp
+    spec:
+      serviceAccountName: bosgenesis-k8s-inspector-mcp
+      automountServiceAccountToken: true
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        fsGroup: 10001
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: app
+          image: bosgenesis-k8s-inspector-mcp:0.1.0
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8080
+          env:
+            - name: BOSGENESIS_RUN_MODE
+              value: "api"
+            - name: BOSGENESIS_ALLOWED_NAMESPACE
+              value: "bosgenesis"
+            - name: BOSGENESIS_K8S_AUTH_MODE
+              value: "in_cluster"
+            - name: BOSGENESIS_SETTINGS_FILE
+              value: "/app/config/settings.yaml"
+            - name: BOSGENESIS_POLICY_FILE
+              value: "/app/config/policy.yaml"
+            - name: BOSGENESIS_AUDIT_LOG_FILE
+              value: "/var/log/bosgenesis-k8s-inspector/audit.jsonl"
+            - name: BOSGENESIS_OTEL_ENABLED
+              value: "true"
+            - name: BOSGENESIS_OTEL_SERVICE_NAME
+              value: "bosgenesis-k8s-inspector-mcp"
+            - name: BOSGENESIS_OTEL_EXPORTER_OTLP_ENDPOINT
+              value: "http://signoz-otel-collector.signoz:4317"
+            - name: BOSGENESIS_OTEL_EXPORTER_OTLP_INSECURE
+              value: "true"
+            - name: BOSGENESIS_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: bosgenesis-k8s-inspector-mcp-secret
+                  key: BOSGENESIS_API_KEY
+          volumeMounts:
+            - name: config
+              mountPath: /app/config
+              readOnly: true
+            - name: audit-log
+              mountPath: /var/log/bosgenesis-k8s-inspector
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 20
+            periodSeconds: 20
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: false
+            capabilities:
+              drop: ["ALL"]
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+      volumes:
+        - name: config
+          configMap:
+            name: bosgenesis-k8s-inspector-mcp-config
+        - name: audit-log
+          emptyDir: {}

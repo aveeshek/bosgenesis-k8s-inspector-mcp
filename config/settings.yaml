@@ -1,0 +1,32 @@
+app:
+  name: bosgenesis-k8s-inspector-mcp
+  environment: local
+
+kubernetes:
+  allowed_namespace: bosgenesis
+  auth_mode: in_cluster
+  kubeconfig_path: /config/kubeconfig
+  kubeconfig_context: ""
+
+api:
+  host: 0.0.0.0
+  port: 8080
+  require_api_key: true
+
+audit:
+  enabled: true
+  log_file: /var/log/bosgenesis-k8s-inspector/audit.jsonl
+  include_request_body: true
+  include_response_summary: true
+
+observability:
+  otel_enabled: true
+  service_name: bosgenesis-k8s-inspector-mcp
+  otlp_endpoint: http://signoz-otel-collector.signoz:4317
+  otlp_insecure: true
+
+future_vault:
+  enabled: false
+  address: ""
+  mount: bosgenesis
+  path: k8s-inspector-mcp

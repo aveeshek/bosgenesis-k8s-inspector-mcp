@@ -1,0 +1,69 @@
+namespace_boundary:
+  allowed_namespace: bosgenesis
+  reject_if_namespace_missing: true
+  reject_if_namespace_differs: true
+
+blocked_resources:
+  - secrets
+  - serviceaccounts
+  - roles
+  - rolebindings
+  - clusterroles
+  - clusterrolebindings
+  - nodes
+  - namespaces
+  - persistentvolumes
+  - customresourcedefinitions
+
+blocked_subresources:
+  - pods/exec
+  - pods/attach
+  - pods/portforward
+
+allowed_read_resources:
+  - pods
+  - pods/log
+  - services
+  - endpoints
+  - configmaps
+  - persistentvolumeclaims
+  - events
+  - deployments
+  - replicasets
+  - statefulsets
+  - daemonsets
+  - jobs
+  - cronjobs
+  - ingresses
+
+allowed_write_resources:
+  - pods
+  - services
+  - configmaps
+  - persistentvolumeclaims
+  - deployments
+  - replicasets
+  - statefulsets
+  - daemonsets
+  - jobs
+  - cronjobs
+  - ingresses
+
+mutation_safety:
+  require_dry_run_by_default: false
+  server_side_apply: true
+  field_manager: bosgenesis-k8s-inspector-mcp
+  reject_cluster_scoped_objects: true
+  reject_secret_refs_in_user_payload: false
+  reject_host_network: true
+  reject_host_pid: true
+  reject_host_ipc: true
+  reject_privileged_containers: true
+  reject_host_path_volumes: true
+  reject_service_account_override: true
+  default_automount_service_account_token: false
+
+audit:
+  audit_all_reads: true
+  audit_all_writes: true
+  audit_denied_actions: true

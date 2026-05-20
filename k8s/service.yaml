@@ -1,0 +1,13 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: bosgenesis-k8s-inspector-mcp
+  namespace: bosgenesis
+spec:
+  type: ClusterIP
+  selector:
+    app: bosgenesis-k8s-inspector-mcp
+  ports:
+    - name: http
+      port: 8080
+      targetPort: http

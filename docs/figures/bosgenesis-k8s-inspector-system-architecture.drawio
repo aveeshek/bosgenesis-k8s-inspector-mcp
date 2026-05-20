@@ -1,0 +1,245 @@
+<mxfile host="65bd71144e">
+    <diagram id="bosgenesis-k8s-architecture" name="System Architecture">
+        <mxGraphModel dx="2660" dy="1731" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="0" pageScale="1" pageWidth="2400" pageHeight="1500" math="0" shadow="0">
+            <root>
+                <mxCell id="0"/>
+                <mxCell id="1" parent="0"/>
+                <mxCell id="title" value="BOS Genesis Kubernetes Inspector MCP System Architecture" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=26;fontStyle=1;fontFamily=Arial;fontColor=#111827;" parent="1" vertex="1">
+                    <mxGeometry x="430" y="30" width="1540" height="50" as="geometry"/>
+                </mxCell>
+                <mxCell id="subtitle" value="Governed agent access to Kubernetes resources through namespace-scoped policy, audit, and observability controls" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=26;fontFamily=Arial;fontColor=#4B5563;" parent="1" vertex="1">
+                    <mxGeometry x="310" y="85" width="1780" height="50" as="geometry"/>
+                </mxCell>
+                <mxCell id="clients_container" value="Controlled Clients" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F8FAFC;strokeColor=#94A3B8;strokeWidth=2;fontSize=26;fontStyle=1;fontFamily=Arial;fontColor=#334155;align=left;verticalAlign=top;spacing=14;" parent="1" vertex="1">
+                    <mxGeometry x="80" y="190" width="360" height="570" as="geometry"/>
+                </mxCell>
+                <mxCell id="runtime_container" value="BOS Genesis K8s Inspector Service" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F8FAFC;strokeColor=#64748B;strokeWidth=2;fontSize=26;fontStyle=1;fontFamily=Arial;fontColor=#1F2937;align=left;verticalAlign=top;spacing=14;" parent="1" vertex="1">
+                    <mxGeometry x="520" y="170" width="900" height="760" as="geometry"/>
+                </mxCell>
+                <mxCell id="policy_container" value="Policy And Configuration Boundary" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFF7ED;strokeColor=#FDBA74;strokeWidth=2;fontSize=26;fontStyle=1;fontFamily=Arial;fontColor=#7C2D12;align=left;verticalAlign=top;spacing=14;" parent="1" vertex="1">
+                    <mxGeometry x="520" y="980" width="900" height="280" as="geometry"/>
+                </mxCell>
+                <mxCell id="k8s_container" value="Kubernetes Namespace Boundary" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F0FDF4;strokeColor=#86EFAC;strokeWidth=2;fontSize=26;fontStyle=1;fontFamily=Arial;fontColor=#14532D;align=left;verticalAlign=top;spacing=14;" parent="1" vertex="1">
+                    <mxGeometry x="1510" y="170" width="810" height="820" as="geometry"/>
+                </mxCell>
+                <mxCell id="observability_container" value="Audit And Observability" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#EFF6FF;strokeColor=#93C5FD;strokeWidth=2;fontSize=26;fontStyle=1;fontFamily=Arial;fontColor=#1E3A8A;align=left;verticalAlign=top;spacing=14;" parent="1" vertex="1">
+                    <mxGeometry x="1510" y="1040" width="810" height="270" as="geometry"/>
+                </mxCell>
+                <mxCell id="codex" value="Codex / AI Agent&lt;br&gt;MCP client" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#DBEAFE;strokeColor=#2563EB;strokeWidth=2;fontSize=26;fontFamily=Arial;fontColor=#1E3A8A;spacing=12;" parent="1" vertex="1">
+                    <mxGeometry x="120" y="300" width="280" height="120" as="geometry"/>
+                </mxCell>
+                <mxCell id="ui_clients" value="BOS AI Studio&lt;br&gt;n8n / curl" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E0F2FE;strokeColor=#0284C7;strokeWidth=2;fontSize=26;fontFamily=Arial;fontColor=#075985;spacing=12;" parent="1" vertex="1">
+                    <mxGeometry x="120" y="540" width="280" height="120" as="geometry"/>
+                </mxCell>
+                <mxCell id="mcp_server" value="MCP Server&lt;br&gt;stdio tool surface" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#DBEAFE;strokeColor=#2563EB;strokeWidth=2;fontSize=26;fontFamily=Arial;fontColor=#1E3A8A;spacing=12;" parent="1" vertex="1">
+                    <mxGeometry x="590" y="270" width="260" height="120" as="geometry"/>
+                </mxCell>
+                <mxCell id="rest_api" value="FastAPI REST API&lt;br&gt;X-API-Key protected" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E0F2FE;strokeColor=#0284C7;strokeWidth=2;fontSize=26;fontFamily=Arial;fontColor=#075985;spacing=12;" parent="1" vertex="1">
+                    <mxGeometry x="590" y="510" width="260" height="120" as="geometry"/>
+                </mxCell>
+                <mxCell id="router" value="Tool / API Router&lt;br&gt;normalized commands" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F1F5F9;strokeColor=#475569;strokeWidth=2;fontSize=26;fontFamily=Arial;fontColor=#334155;spacing=12;" parent="1" vertex="1">
+                    <mxGeometry x="970" y="390" width="300" height="120" as="geometry"/>
+                </mxCell>
+                <mxCell id="validator" value="Input Validator&lt;br&gt;schema and manifest parse" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F1F5F9;strokeColor=#475569;strokeWidth=2;fontSize=26;fontFamily=Arial;fontColor=#334155;spacing=12;" parent="1" vertex="1">
+                    <mxGeometry x="650" y="700" width="300" height="120" as="geometry"/>
+                </mxCell>
+                <mxCell id="policy_engine" value="Namespace Guard&lt;br&gt;Policy Engine" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFEDD5;strokeColor=#EA580C;strokeWidth=2;fontSize=26;fontStyle=1;fontFamily=Arial;fontColor=#7C2D12;spacing=12;" parent="1" vertex="1">
+                    <mxGeometry x="1020" y="700" width="300" height="120" as="geometry"/>
+                </mxCell>
+                <mxCell id="operations" value="Operation Layer&lt;br&gt;list apply patch delete scale" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F1F5F9;strokeColor=#475569;strokeWidth=2;fontSize=26;fontFamily=Arial;fontColor=#334155;spacing=12;" parent="1" vertex="1">
+                    <mxGeometry x="1020" y="560" width="300" height="120" as="geometry"/>
+                </mxCell>
+                <mxCell id="k8s_client" value="Kubernetes Python Client&lt;br&gt;in-cluster or kubeconfig auth" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#DCFCE7;strokeColor=#16A34A;strokeWidth=2;fontSize=26;fontFamily=Arial;fontColor=#166534;spacing=12;" parent="1" vertex="1">
+                    <mxGeometry x="1570" y="390" width="330" height="120" as="geometry"/>
+                </mxCell>
+                <mxCell id="api_server" value="Kubernetes API Server&lt;br&gt;namespaced requests only" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#DCFCE7;strokeColor=#16A34A;strokeWidth=2;fontSize=26;fontFamily=Arial;fontColor=#166534;spacing=12;" parent="1" vertex="1">
+                    <mxGeometry x="1950" y="390" width="310" height="120" as="geometry"/>
+                </mxCell>
+                <mxCell id="rbac" value="ServiceAccount&lt;br&gt;Role + RoleBinding" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ECFDF5;strokeColor=#059669;strokeWidth=2;fontSize=26;fontStyle=1;fontFamily=Arial;fontColor=#065F46;spacing=12;" parent="1" vertex="1">
+                    <mxGeometry x="1740" y="520" width="360" height="120" as="geometry"/>
+                </mxCell>
+                <mxCell id="namespace" value="Allowed Namespace&lt;br&gt;bosgenesis only" style="ellipse;whiteSpace=wrap;html=1;aspect=fixed;fillColor=#BBF7D0;strokeColor=#15803D;strokeWidth=2;fontSize=26;fontStyle=1;fontFamily=Arial;fontColor=#14532D;spacing=12;" parent="1" vertex="1">
+                    <mxGeometry x="1785" y="660" width="270" height="150" as="geometry"/>
+                </mxCell>
+                <mxCell id="allowed_resources" value="Allowed Resources&lt;br&gt;pods logs deployments&lt;br&gt;services ingresses configmaps events" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F0FDF4;strokeColor=#22C55E;strokeWidth=2;fontSize=26;fontFamily=Arial;fontColor=#166534;spacing=12;" parent="1" vertex="1">
+                    <mxGeometry x="1550" y="840" width="360" height="120" as="geometry"/>
+                </mxCell>
+                <mxCell id="blocked_resources" value="Blocked By Policy&lt;br&gt;secrets RBAC nodes namespaces&lt;br&gt;exec port-forward privileged pods" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FEE2E2;strokeColor=#DC2626;strokeWidth=2;fontSize=26;fontFamily=Arial;fontColor=#7F1D1D;spacing=12;" parent="1" vertex="1">
+                    <mxGeometry x="1940" y="840" width="340" height="120" as="geometry"/>
+                </mxCell>
+                <mxCell id="settings" value="settings.yaml / .env&lt;br&gt;namespace auth API key OTLP endpoint" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFBEB;strokeColor=#D97706;strokeWidth=2;fontSize=26;fontFamily=Arial;fontColor=#78350F;spacing=12;" parent="1" vertex="1">
+                    <mxGeometry x="590" y="1090" width="350" height="120" as="geometry"/>
+                </mxCell>
+                <mxCell id="policy_file" value="policy.yaml&lt;br&gt;allowed resources blocked kinds write controls" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFBEB;strokeColor=#D97706;strokeWidth=2;fontSize=26;fontFamily=Arial;fontColor=#78350F;spacing=12;" parent="1" vertex="1">
+                    <mxGeometry x="1010" y="1090" width="350" height="120" as="geometry"/>
+                </mxCell>
+                <mxCell id="audit" value="JSONL Audit Log&lt;br&gt;actor action resource decision status" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#DBEAFE;strokeColor=#2563EB;strokeWidth=2;fontSize=26;fontFamily=Arial;fontColor=#1E3A8A;spacing=12;" parent="1" vertex="1">
+                    <mxGeometry x="1560" y="1140" width="330" height="120" as="geometry"/>
+                </mxCell>
+                <mxCell id="otel" value="OpenTelemetry Spans&lt;br&gt;request policy k8s audit latency" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#DBEAFE;strokeColor=#2563EB;strokeWidth=2;fontSize=26;fontFamily=Arial;fontColor=#1E3A8A;spacing=12;" parent="1" vertex="1">
+                    <mxGeometry x="1950" y="1140" width="330" height="120" as="geometry"/>
+                </mxCell>
+                <mxCell id="signoz" value="SigNoz OTel Collector&lt;br&gt;traces logs metrics" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#EDE9FE;strokeColor=#7C3AED;strokeWidth=2;fontSize=26;fontFamily=Arial;fontColor=#4C1D95;spacing=12;" parent="1" vertex="1">
+                    <mxGeometry x="1950" y="1320" width="330" height="110" as="geometry"/>
+                </mxCell>
+                <mxCell id="boundary_note" value="Hard security boundary: no cluster-admin, no cross-namespace access, no direct secret access, no RBAC mutation." style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#94A3B8;strokeWidth=2;fontSize=26;fontStyle=1;fontFamily=Arial;fontColor=#334155;spacing=12;" parent="1" vertex="1">
+                    <mxGeometry x="80" y="1330" width="1120" height="90" as="geometry"/>
+                </mxCell>
+                <mxCell id="e_codex_mcp" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#2563EB;strokeWidth=3;endArrow=block;endFill=1;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" parent="1" source="codex" target="mcp_server" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <Array as="points">
+                            <mxPoint x="480" y="360"/>
+                            <mxPoint x="480" y="330"/>
+                        </Array>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="e_ui_rest" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#0284C7;strokeWidth=3;endArrow=block;endFill=1;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" parent="1" source="ui_clients" target="rest_api" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <Array as="points">
+                            <mxPoint x="480" y="600"/>
+                            <mxPoint x="480" y="570"/>
+                        </Array>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="e_mcp_router" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#475569;strokeWidth=3;endArrow=block;endFill=1;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.25;entryDx=0;entryDy=0;" parent="1" source="mcp_server" target="router" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <Array as="points">
+                            <mxPoint x="910" y="330"/>
+                            <mxPoint x="910" y="420"/>
+                        </Array>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="e_rest_router" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#475569;strokeWidth=3;endArrow=block;endFill=1;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.75;entryDx=0;entryDy=0;" parent="1" source="rest_api" target="router" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <Array as="points">
+                            <mxPoint x="910" y="570"/>
+                            <mxPoint x="910" y="480"/>
+                        </Array>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="e_router_operations" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#475569;strokeWidth=3;endArrow=block;endFill=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" parent="1" source="router" target="operations" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <Array as="points">
+                            <mxPoint x="1120" y="535"/>
+                            <mxPoint x="1170" y="535"/>
+                        </Array>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="e_operations_validator" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#475569;strokeWidth=3;endArrow=block;endFill=1;exitX=0.25;exitY=1;exitDx=0;exitDy=0;entryX=1;entryY=0.5;entryDx=0;entryDy=0;" parent="1" source="operations" target="validator" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <Array as="points">
+                            <mxPoint x="1095" y="650"/>
+                            <mxPoint x="1095" y="760"/>
+                        </Array>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="e_validator_policy" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#EA580C;strokeWidth=3;endArrow=block;endFill=1;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" parent="1" source="validator" target="policy_engine" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <Array as="points">
+                            <mxPoint x="980" y="760"/>
+                            <mxPoint x="990" y="760"/>
+                        </Array>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="e_policy_operations" value="allow / deny" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#EA580C;strokeWidth=3;endArrow=block;endFill=1;exitX=0.5;exitY=0;exitDx=0;exitDy=0;entryX=0.75;entryY=1;entryDx=0;entryDy=0;fontSize=26;fontFamily=Arial;fontColor=#7C2D12;" parent="1" source="policy_engine" target="operations" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <Array as="points">
+                            <mxPoint x="1170" y="650"/>
+                            <mxPoint x="1245" y="650"/>
+                        </Array>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="e_operations_k8s_client" value="validated operation" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#16A34A;strokeWidth=3;endArrow=block;endFill=1;exitX=1;exitY=0.25;exitDx=0;exitDy=0;entryX=0;entryY=0.75;entryDx=0;entryDy=0;fontSize=26;fontFamily=Arial;fontColor=#166534;" parent="1" source="operations" target="k8s_client" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <Array as="points">
+                            <mxPoint x="1450" y="590"/>
+                            <mxPoint x="1450" y="480"/>
+                        </Array>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="e_k8s_api" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#16A34A;strokeWidth=3;endArrow=block;endFill=1;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" parent="1" source="k8s_client" target="api_server" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <Array as="points">
+                            <mxPoint x="1920" y="450"/>
+                            <mxPoint x="1930" y="450"/>
+                        </Array>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="e_api_rbac" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#16A34A;strokeWidth=3;endArrow=block;endFill=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" parent="1" source="api_server" target="rbac" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <Array as="points">
+                            <mxPoint x="2105" y="500"/>
+                            <mxPoint x="1920" y="500"/>
+                        </Array>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="e_rbac_namespace" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#16A34A;strokeWidth=3;endArrow=block;endFill=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" parent="1" source="rbac" target="namespace" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <Array as="points">
+                            <mxPoint x="1920" y="640"/>
+                            <mxPoint x="1920" y="650"/>
+                        </Array>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="e_namespace_allowed" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#16A34A;strokeWidth=3;endArrow=block;endFill=1;exitX=0.25;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" parent="1" source="namespace" target="allowed_resources" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <Array as="points">
+                            <mxPoint x="1850" y="820"/>
+                            <mxPoint x="1730" y="820"/>
+                        </Array>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="e_policy_blocked" value="reject + audit" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#DC2626;strokeWidth=3;dashed=1;endArrow=block;endFill=1;exitX=1;exitY=0.75;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;fontSize=26;fontFamily=Arial;fontColor=#7F1D1D;" parent="1" source="policy_engine" target="blocked_resources" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <Array as="points">
+                            <mxPoint x="1460" y="790"/>
+                            <mxPoint x="1460" y="990"/>
+                            <mxPoint x="1920" y="990"/>
+                            <mxPoint x="1920" y="900"/>
+                        </Array>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="e_settings_policy" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#D97706;strokeWidth=3;endArrow=block;endFill=1;exitX=0.5;exitY=0;exitDx=0;exitDy=0;entryX=0.25;entryY=1;entryDx=0;entryDy=0;" parent="1" source="settings" target="policy_engine" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <Array as="points">
+                            <mxPoint x="765" y="950"/>
+                            <mxPoint x="1095" y="950"/>
+                        </Array>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="e_policy_file_policy" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#D97706;strokeWidth=3;endArrow=block;endFill=1;exitX=0.5;exitY=0;exitDx=0;exitDy=0;entryX=0.75;entryY=1;entryDx=0;entryDy=0;" parent="1" source="policy_file" target="policy_engine" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <Array as="points">
+                            <mxPoint x="1185" y="950"/>
+                            <mxPoint x="1245" y="950"/>
+                        </Array>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="e_operations_audit" value="operation events" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#2563EB;strokeWidth=3;endArrow=block;endFill=1;exitX=1;exitY=0.75;exitDx=0;exitDy=0;entryX=0;entryY=0.25;entryDx=0;entryDy=0;fontSize=26;fontFamily=Arial;fontColor=#1E3A8A;" parent="1" source="operations" target="audit" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <Array as="points">
+                            <mxPoint x="1480" y="650"/>
+                            <mxPoint x="1480" y="1170"/>
+                        </Array>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="e_operations_otel" value="trace spans" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#2563EB;strokeWidth=3;endArrow=block;endFill=1;exitX=1;exitY=0.9;exitDx=0;exitDy=0;entryX=0;entryY=0.75;entryDx=0;entryDy=0;fontSize=26;fontFamily=Arial;fontColor=#1E3A8A;" parent="1" source="operations" target="otel" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <Array as="points">
+                            <mxPoint x="1490" y="668"/>
+                            <mxPoint x="1490" y="1230"/>
+                        </Array>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="e_otel_signoz" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#7C3AED;strokeWidth=3;endArrow=block;endFill=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" parent="1" source="otel" target="signoz" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <Array as="points">
+                            <mxPoint x="2115" y="1285"/>
+                            <mxPoint x="2115" y="1300"/>
+                        </Array>
+                    </mxGeometry>
+                </mxCell>
+            </root>
+        </mxGraphModel>
+    </diagram>
+</mxfile>
