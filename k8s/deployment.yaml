@@ -57,6 +57,8 @@ spec:
                 secretKeyRef:
                   name: bosgenesis-k8s-inspector-mcp-secret
                   key: BOSGENESIS_API_KEY
+            - name: BOSGENESIS_MCP_ALLOWED_HOSTS
+              value: "localhost,127.0.0.1,k8s-inspector.bosgenesis.local,bosgenesis-k8s-inspector-mcp,bosgenesis-k8s-inspector-mcp.bosgenesis.svc,bosgenesis-k8s-inspector-mcp.bosgenesis.svc.cluster.local"
           volumeMounts:
             - name: config
               mountPath: /app/config

@@ -4,6 +4,19 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
+WritableResource = Literal[
+    "pods",
+    "services",
+    "configmaps",
+    "persistentvolumeclaims",
+    "deployments",
+    "statefulsets",
+    "daemonsets",
+    "jobs",
+    "cronjobs",
+    "ingresses",
+]
+
 
 class ApplyManifestRequest(BaseModel):
     manifest: dict[str, Any]
@@ -12,19 +25,12 @@ class ApplyManifestRequest(BaseModel):
     correlation_id: str | None = None
 
 
+class ManifestMutationRequest(ApplyManifestRequest):
+    pass
+
+
 class DeleteResourceRequest(BaseModel):
-    resource: Literal[
-        "pods",
-        "services",
-        "configmaps",
-        "persistentvolumeclaims",
-        "deployments",
-        "statefulsets",
-        "daemonsets",
-        "jobs",
-        "cronjobs",
-        "ingresses",
-    ]
+    resource: WritableResource
     name: str
     namespace: str = Field(default="bosgenesis")
     dry_run: bool = False
@@ -32,21 +38,29 @@ class DeleteResourceRequest(BaseModel):
     correlation_id: str | None = None
 
 
+class DeleteCollectionRequest(BaseModel):
+    resource: WritableResource
+    namespace: str = Field(default="bosgenesis")
+    label_selector: str | None = None
+    field_selector: str | None = None
+    dry_run: bool = False
+    actor: str = "codex"
+    correlation_id: str | None = None
+
+
 class PatchResourceRequest(BaseModel):
-    resource: Literal[
-        "pods",
-        "services",
-        "configmaps",
-        "persistentvolumeclaims",
-        "deployments",
-        "statefulsets",
-        "daemonsets",
-        "jobs",
-        "cronjobs",
-        "ingresses",
-    ]
+    resource: WritableResource
     name: str
     patch: dict[str, Any]
+    namespace: str = Field(default="bosgenesis")
+    dry_run: bool = False
+    actor: str = "codex"
+    correlation_id: str | None = None
+
+
+class BindPodRequest(BaseModel):
+    pod_name: str
+    node_name: str
     namespace: str = Field(default="bosgenesis")
     dry_run: bool = False
     actor: str = "codex"

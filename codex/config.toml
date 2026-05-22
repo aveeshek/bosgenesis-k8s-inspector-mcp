@@ -1,45 +1,43 @@
-[mcp_servers.bosgenesis_k8s]
-enabled = true
-command = "/home/taieuser/bosgenesis-k8s-inspector-mcp/.venv/bin/python"
-args = ["-m", "bosgenesis_k8s_inspector_mcp.server_mcp"]
-cwd = "/home/taieuser/bosgenesis-k8s-inspector-mcp"
-startup_timeout_sec = 20
-tool_timeout_sec = 120
-default_tools_approval_mode = "prompt"
-
-enabled_tools = [
-  "k8s_namespace_summary",
-  "k8s_list_pods",
-  "k8s_describe_pod",
-  "k8s_get_pod_logs",
-  "k8s_list_services",
-  "k8s_list_deployments",
-  "k8s_list_statefulsets",
-  "k8s_list_ingresses",
-  "k8s_list_events",
-  "k8s_apply_manifest",
-  "k8s_delete_resource",
-  "k8s_patch_resource",
-  "k8s_scale_deployment"
-]
-
-[mcp_servers.bosgenesis_k8s.env]
-PYTHONPATH = "/home/taieuser/bosgenesis-k8s-inspector-mcp/src"
-BOSGENESIS_SETTINGS_FILE = "/home/taieuser/bosgenesis-k8s-inspector-mcp/config/settings.yaml"
-BOSGENESIS_POLICY_FILE = "/home/taieuser/bosgenesis-k8s-inspector-mcp/config/policy.yaml"
-BOSGENESIS_ALLOWED_NAMESPACE = "bosgenesis"
-BOSGENESIS_K8S_AUTH_MODE = "kubeconfig"
-BOSGENESIS_KUBECONFIG_PATH = "/home/taieuser/.kube/config"
-BOSGENESIS_OTEL_ENABLED = "false"
-
 [mcp_servers.bosgenesis_k8s.tools.k8s_apply_manifest]
+approval_mode = "prompt"
+
+[mcp_servers.bosgenesis_k8s.tools.k8s_create_resource]
+approval_mode = "prompt"
+
+[mcp_servers.bosgenesis_k8s.tools.k8s_update_resource]
 approval_mode = "prompt"
 
 [mcp_servers.bosgenesis_k8s.tools.k8s_delete_resource]
 approval_mode = "prompt"
 
+[mcp_servers.bosgenesis_k8s.tools.k8s_delete_collection]
+approval_mode = "prompt"
+
 [mcp_servers.bosgenesis_k8s.tools.k8s_patch_resource]
+approval_mode = "prompt"
+
+[mcp_servers.bosgenesis_k8s.tools.k8s_bind_pod]
 approval_mode = "prompt"
 
 [mcp_servers.bosgenesis_k8s.tools.k8s_scale_deployment]
 approval_mode = "prompt"
+
+[mcp_servers.node_repl]
+args = []
+command = 'C:\Users\edutavi\AppData\Local\OpenAI\Codex\bin\3c238e29bbc930ff\node_repl.exe'
+startup_timeout_sec = 120
+
+[mcp_servers.node_repl.env]
+BROWSER_USE_AVAILABLE_BACKENDS = "chrome,iab"
+BROWSER_USE_MARKETPLACE_NAME = "openai-bundled"
+CODEX_CLI_PATH = 'C:\Users\edutavi\AppData\Local\OpenAI\Codex\bin\3f4fb8cdd344abc7\codex.exe'
+CODEX_HOME = 'C:\Users\edutavi\.codex'
+NODE_REPL_NATIVE_PIPE_CONNECT_TIMEOUT_MS = "1000"
+NODE_REPL_NODE_MODULE_DIRS = ""
+NODE_REPL_NODE_PATH = 'C:\Users\edutavi\AppData\Local\OpenAI\Codex\bin\5b9024f90663758b\node.exe'
+NODE_REPL_TRUSTED_BROWSER_CLIENT_SHA256S = "167fdf579477181fba1773c1efb067b00c5a64fe85dafb50a2001bde198dc739"
+NODE_REPL_TRUSTED_CODE_PATHS = 'C:\Users\edutavi\.codex'
+NODE_REPL_UNTRUSTED_ENV_ALLOWLIST = "BROWSER_USE_MARKETPLACE_NAME"
+
+[features]
+js_repl = false

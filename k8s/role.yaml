@@ -12,24 +12,28 @@ rules:
       - configmaps
       - persistentvolumeclaims
       - events
-    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete", "deletecollection"]
   - apiGroups: [""]
     resources:
       - pods/log
     verbs: ["get", "list"]
+  - apiGroups: [""]
+    resources:
+      - pods/binding
+    verbs: ["create"]
   - apiGroups: ["apps"]
     resources:
       - deployments
       - replicasets
       - statefulsets
       - daemonsets
-    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete", "deletecollection"]
   - apiGroups: ["batch"]
     resources:
       - jobs
       - cronjobs
-    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete", "deletecollection"]
   - apiGroups: ["networking.k8s.io"]
     resources:
       - ingresses
-    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete", "deletecollection"]

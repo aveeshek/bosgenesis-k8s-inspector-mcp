@@ -22,6 +22,13 @@ def test_k8s_auth_mode_supports_local_alias(monkeypatch):
     assert AppConfig().k8s_auth_mode == "kubeconfig"
 
 
+def test_prefixed_k8s_auth_mode_wins_over_local_alias(monkeypatch):
+    monkeypatch.setenv("BOSGENESIS_K8S_AUTH_MODE", "in_cluster")
+    monkeypatch.setenv("K8S_AUTH_MODE", "kubeconfig")
+
+    assert AppConfig().k8s_auth_mode == "in_cluster"
+
+
 def test_kubeconfig_supports_local_alias_and_repo_relative_paths(monkeypatch):
     monkeypatch.chdir(PROJECT_ROOT.parent)
     monkeypatch.setenv("KUBECONFIG", "./kube/config")

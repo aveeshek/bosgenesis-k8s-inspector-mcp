@@ -15,6 +15,20 @@ from .models import OperationResponse
 from .policy import policy
 
 
+RESOURCE_DEFS: dict[str, tuple[str, str]] = {
+    "pods": ("v1", "Pod"),
+    "services": ("v1", "Service"),
+    "configmaps": ("v1", "ConfigMap"),
+    "persistentvolumeclaims": ("v1", "PersistentVolumeClaim"),
+    "deployments": ("apps/v1", "Deployment"),
+    "statefulsets": ("apps/v1", "StatefulSet"),
+    "daemonsets": ("apps/v1", "DaemonSet"),
+    "jobs": ("batch/v1", "Job"),
+    "cronjobs": ("batch/v1", "CronJob"),
+    "ingresses": ("networking.k8s.io/v1", "Ingress"),
+}
+
+
 class KubernetesOperations:
     def __init__(self) -> None:
         self.namespace = config.namespace
@@ -242,6 +256,151 @@ class KubernetesOperations:
                 audit_logger.emit(action="apply", resource=resource, namespace=namespace, name=name, status="failed", actor=actor, error=str(exc), correlation_id=audit_start["correlation_id"], tool=tool, resource_kind=kind, dry_run=dry_run, decision="allowed", reason=str(exc))
                 raise KubernetesOperationError(str(exc)) from exc
 
+    def create_manifest(
+        self,
+        manifest: dict[str, Any],
+        dry_run: bool = False,
+        actor: str = "codex",
+        correlation_id: str | None = None,
+        tool: str = "k8s_create_resource",
+    ) -> OperationResponse:
+        return self._manifest_mutation(
+            action="create",
+            manifest=manifest,
+            dry_run=dry_run,
+            actor=actor,
+            correlation_id=correlation_id,
+            tool=tool,
+        )
+
+    def update_manifest(
+        self,
+        manifest: dict[str, Any],
+        dry_run: bool = False,
+        actor: str = "codex",
+        correlation_id: str | None = None,
+        tool: str = "k8s_update_resource",
+    ) -> OperationResponse:
+        return self._manifest_mutation(
+            action="update",
+            manifest=manifest,
+            dry_run=dry_run,
+            actor=actor,
+            correlation_id=correlation_id,
+            tool=tool,
+        )
+
+    def _manifest_mutation(
+        self,
+        action: str,
+        manifest: dict[str, Any],
+        dry_run: bool,
+        actor: str,
+        correlation_id: str | None,
+        tool: str,
+    ) -> OperationResponse:
+        try:
+            kind, resource, name = policy.validate_manifest_for_verb(manifest, action)
+            namespace = manifest["metadata"]["namespace"]
+            self._enforce_safe_defaults(manifest)
+        except PolicyDeniedError as exc:
+            metadata = manifest.get("metadata") or {}
+            namespace = metadata.get("namespace") or "unknown"
+            name = metadata.get("name")
+            kind = manifest.get("kind") or "unknown"
+            audit_logger.emit(
+                action=action,
+                resource=str(kind),
+                namespace=str(namespace),
+                name=name,
+                status="denied",
+                actor=actor,
+                request={"kind": kind, "dry_run": dry_run},
+                correlation_id=correlation_id,
+                tool=tool,
+                resource_kind=str(kind),
+                dry_run=dry_run,
+                decision="denied",
+                reason=str(exc),
+            )
+            raise
+
+        audit_start = audit_logger.emit(
+            action=action,
+            resource=resource,
+            namespace=namespace,
+            name=name,
+            status="started",
+            actor=actor,
+            request={"kind": kind, "dry_run": dry_run},
+            correlation_id=correlation_id,
+            tool=tool,
+            resource_kind=kind,
+            dry_run=dry_run,
+            decision="allowed",
+        )
+        with audit_logger.span(
+            f"k8s.{action}_manifest",
+            {"k8s.namespace": namespace, "k8s.resource": resource, "k8s.name": name, "dry_run": dry_run},
+        ):
+            try:
+                dyn = DynamicClient(api_client())
+                api = dyn.resources.get(api_version=manifest["apiVersion"], kind=kind)
+                common = {"body": manifest, "namespace": namespace}
+                if dry_run:
+                    common["dry_run"] = "All"
+                if action == "create":
+                    result = api.create(**common)
+                elif action == "update":
+                    result = api.replace(name=name, **common)
+                else:
+                    raise PolicyDeniedError(f"Unsupported manifest mutation action '{action}'.")
+                summary = {
+                    "kind": kind,
+                    "name": name,
+                    "resource_version": getattr(result.metadata, "resourceVersion", None),
+                }
+                audit_logger.emit(
+                    action=action,
+                    resource=resource,
+                    namespace=namespace,
+                    name=name,
+                    status="success",
+                    actor=actor,
+                    response_summary=summary,
+                    correlation_id=audit_start["correlation_id"],
+                    tool=tool,
+                    resource_kind=kind,
+                    dry_run=dry_run,
+                    decision="allowed",
+                )
+                return OperationResponse(
+                    status="success",
+                    namespace=namespace,
+                    resource=resource,
+                    name=name,
+                    dry_run=dry_run,
+                    summary=summary,
+                    audit_id=audit_start["audit_id"],
+                )
+            except ApiException as exc:
+                audit_logger.emit(
+                    action=action,
+                    resource=resource,
+                    namespace=namespace,
+                    name=name,
+                    status="failed",
+                    actor=actor,
+                    error=str(exc),
+                    correlation_id=audit_start["correlation_id"],
+                    tool=tool,
+                    resource_kind=kind,
+                    dry_run=dry_run,
+                    decision="allowed",
+                    reason=str(exc),
+                )
+                raise KubernetesOperationError(str(exc)) from exc
+
     def delete_resource(self, resource: str, name: str, namespace: str, dry_run: bool = False, actor: str = "codex", correlation_id: str | None = None, tool: str = "k8s_delete_resource") -> OperationResponse:
         policy.assert_namespace(namespace)
         policy.assert_resource_allowed(resource, "delete")
@@ -279,38 +438,184 @@ class KubernetesOperations:
             audit_logger.emit(action="delete", resource=resource, namespace=namespace, name=name, status="failed", actor=actor, error=str(exc), correlation_id=audit_start["correlation_id"], tool=tool, dry_run=dry_run, decision="allowed", reason=str(exc))
             raise KubernetesOperationError(str(exc)) from exc
 
+    def delete_collection(
+        self,
+        resource: str,
+        namespace: str,
+        label_selector: str | None = None,
+        field_selector: str | None = None,
+        dry_run: bool = False,
+        actor: str = "codex",
+        correlation_id: str | None = None,
+        tool: str = "k8s_delete_collection",
+    ) -> OperationResponse:
+        policy.assert_namespace(namespace)
+        policy.assert_resource_allowed(resource, "deletecollection")
+        if not label_selector and not field_selector:
+            raise PolicyDeniedError("deletecollection requires a label_selector or field_selector.")
+
+        api_version, kind = self._resource_def(resource)
+        audit_start = audit_logger.emit(
+            action="deletecollection",
+            resource=resource,
+            namespace=namespace,
+            status="started",
+            actor=actor,
+            request={
+                "dry_run": dry_run,
+                "label_selector": label_selector,
+                "field_selector": field_selector,
+            },
+            correlation_id=correlation_id,
+            tool=tool,
+            resource_kind=kind,
+            dry_run=dry_run,
+            decision="allowed",
+        )
+        try:
+            dyn = DynamicClient(api_client())
+            api = dyn.resources.get(api_version=api_version, kind=kind)
+            kwargs: dict[str, Any] = {"namespace": namespace}
+            if label_selector:
+                kwargs["label_selector"] = label_selector
+            if field_selector:
+                kwargs["field_selector"] = field_selector
+            if dry_run:
+                kwargs["dry_run"] = "All"
+            api.delete(**kwargs)
+            summary = {"label_selector": label_selector, "field_selector": field_selector}
+            audit_logger.emit(
+                action="deletecollection",
+                resource=resource,
+                namespace=namespace,
+                status="success",
+                actor=actor,
+                response_summary=summary,
+                correlation_id=audit_start["correlation_id"],
+                tool=tool,
+                resource_kind=kind,
+                dry_run=dry_run,
+                decision="allowed",
+            )
+            return OperationResponse(
+                status="success",
+                namespace=namespace,
+                resource=resource,
+                dry_run=dry_run,
+                summary=summary,
+                audit_id=audit_start["audit_id"],
+            )
+        except ApiException as exc:
+            audit_logger.emit(
+                action="deletecollection",
+                resource=resource,
+                namespace=namespace,
+                status="failed",
+                actor=actor,
+                error=str(exc),
+                correlation_id=audit_start["correlation_id"],
+                tool=tool,
+                resource_kind=kind,
+                dry_run=dry_run,
+                decision="allowed",
+                reason=str(exc),
+            )
+            raise KubernetesOperationError(str(exc)) from exc
+
     def patch_resource(self, resource: str, name: str, namespace: str, patch: dict[str, Any], dry_run: bool = False, actor: str = "codex", correlation_id: str | None = None, tool: str = "k8s_patch_resource") -> OperationResponse:
         policy.assert_namespace(namespace)
         policy.assert_resource_allowed(resource, "patch")
+        policy.validate_patch_payload(patch)
+        api_version, kind = self._resource_def(resource)
         audit_start = audit_logger.emit(action="patch", resource=resource, namespace=namespace, name=name, status="started", actor=actor, request={"dry_run": dry_run, "patch_keys": list(patch.keys())}, correlation_id=correlation_id, tool=tool, dry_run=dry_run, decision="allowed")
         kwargs = {"name": name, "namespace": namespace, "body": patch}
         if dry_run:
             kwargs["dry_run"] = "All"
         try:
-            if resource == "deployments":
-                apps_v1().patch_namespaced_deployment(**kwargs)
-            elif resource == "statefulsets":
-                apps_v1().patch_namespaced_stateful_set(**kwargs)
-            elif resource == "daemonsets":
-                apps_v1().patch_namespaced_daemon_set(**kwargs)
-            elif resource == "services":
-                core_v1().patch_namespaced_service(**kwargs)
-            elif resource == "configmaps":
-                core_v1().patch_namespaced_config_map(**kwargs)
-            elif resource == "ingresses":
-                networking_v1().patch_namespaced_ingress(**kwargs)
-            elif resource == "pods":
-                core_v1().patch_namespaced_pod(**kwargs)
-            elif resource == "jobs":
-                batch_v1().patch_namespaced_job(**kwargs)
-            elif resource == "cronjobs":
-                batch_v1().patch_namespaced_cron_job(**kwargs)
-            else:
-                raise PolicyDeniedError(f"Patch not implemented for '{resource}'.")
+            dyn = DynamicClient(api_client())
+            api = dyn.resources.get(api_version=api_version, kind=kind)
+            api.patch(**kwargs)
             audit_logger.emit(action="patch", resource=resource, namespace=namespace, name=name, status="success", actor=actor, correlation_id=audit_start["correlation_id"], tool=tool, dry_run=dry_run, decision="allowed")
             return OperationResponse(status="success", namespace=namespace, resource=resource, name=name, dry_run=dry_run, audit_id=audit_start["audit_id"])
         except ApiException as exc:
             audit_logger.emit(action="patch", resource=resource, namespace=namespace, name=name, status="failed", actor=actor, error=str(exc), correlation_id=audit_start["correlation_id"], tool=tool, dry_run=dry_run, decision="allowed", reason=str(exc))
+            raise KubernetesOperationError(str(exc)) from exc
+
+    def bind_pod(
+        self,
+        pod_name: str,
+        node_name: str,
+        namespace: str,
+        dry_run: bool = False,
+        actor: str = "codex",
+        correlation_id: str | None = None,
+        tool: str = "k8s_bind_pod",
+    ) -> OperationResponse:
+        policy.assert_namespace(namespace)
+        policy.assert_resource_allowed("pods", "bind")
+        audit_start = audit_logger.emit(
+            action="bind",
+            resource="pods/binding",
+            namespace=namespace,
+            name=pod_name,
+            status="started",
+            actor=actor,
+            request={"dry_run": dry_run, "target_kind": "Node"},
+            correlation_id=correlation_id,
+            tool=tool,
+            resource_kind="Binding",
+            dry_run=dry_run,
+            decision="allowed",
+        )
+        try:
+            body = client.V1Binding(
+                metadata=client.V1ObjectMeta(name=pod_name, namespace=namespace),
+                target=client.V1ObjectReference(api_version="v1", kind="Node", name=node_name),
+            )
+            kwargs: dict[str, Any] = {"namespace": namespace, "body": body}
+            if dry_run:
+                kwargs["dry_run"] = "All"
+            core_v1().create_namespaced_binding(**kwargs)
+            summary = {"pod": pod_name, "target_kind": "Node", "target_name": node_name}
+            audit_logger.emit(
+                action="bind",
+                resource="pods/binding",
+                namespace=namespace,
+                name=pod_name,
+                status="success",
+                actor=actor,
+                response_summary=summary,
+                correlation_id=audit_start["correlation_id"],
+                tool=tool,
+                resource_kind="Binding",
+                dry_run=dry_run,
+                decision="allowed",
+            )
+            return OperationResponse(
+                status="success",
+                namespace=namespace,
+                resource="pods/binding",
+                name=pod_name,
+                dry_run=dry_run,
+                summary=summary,
+                audit_id=audit_start["audit_id"],
+            )
+        except ApiException as exc:
+            audit_logger.emit(
+                action="bind",
+                resource="pods/binding",
+                namespace=namespace,
+                name=pod_name,
+                status="failed",
+                actor=actor,
+                error=str(exc),
+                correlation_id=audit_start["correlation_id"],
+                tool=tool,
+                resource_kind="Binding",
+                dry_run=dry_run,
+                decision="allowed",
+                reason=str(exc),
+            )
             raise KubernetesOperationError(str(exc)) from exc
 
     def scale_deployment(self, name: str, replicas: int, namespace: str, dry_run: bool = False, actor: str = "codex", correlation_id: str | None = None) -> OperationResponse:
@@ -320,6 +625,13 @@ class KubernetesOperations:
     def apply_yaml_text(self, yaml_text: str, dry_run: bool = False, actor: str = "codex") -> list[dict[str, Any]]:
         docs = [doc for doc in yaml.safe_load_all(yaml_text) if doc]
         return [self.apply_manifest(doc, dry_run=dry_run, actor=actor).model_dump() for doc in docs]
+
+    @staticmethod
+    def _resource_def(resource: str) -> tuple[str, str]:
+        try:
+            return RESOURCE_DEFS[resource]
+        except KeyError as exc:
+            raise PolicyDeniedError(f"Resource '{resource}' is not supported by this MCP server.") from exc
 
     @staticmethod
     def _enforce_safe_defaults(manifest: dict[str, Any]) -> None:

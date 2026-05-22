@@ -47,3 +47,22 @@ def test_allow_configmap_manifest():
     }
     kind, resource, name = policy.validate_manifest(manifest)
     assert (kind, resource, name) == ("ConfigMap", "configmaps", "ok")
+
+
+def test_reject_privileged_patch_payload():
+    patch = {
+        "spec": {
+            "template": {
+                "spec": {
+                    "containers": [
+                        {
+                            "name": "app",
+                            "securityContext": {"privileged": True},
+                        }
+                    ]
+                }
+            }
+        }
+    }
+    with pytest.raises(PolicyDeniedError):
+        policy.validate_patch_payload(patch)

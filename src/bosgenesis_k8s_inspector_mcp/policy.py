@@ -33,7 +33,17 @@ class NamespacePolicy:
         if verb in {"get", "list", "watch", "read", "logs"}:
             if resource not in self.allowed_read_resources:
                 raise PolicyDeniedError(f"Read access to resource '{resource}' is not allowed.")
-        elif verb in {"create", "update", "patch", "delete", "apply", "scale", "restart"}:
+        elif verb in {
+            "create",
+            "update",
+            "patch",
+            "delete",
+            "deletecollection",
+            "apply",
+            "scale",
+            "restart",
+            "bind",
+        }:
             if resource not in self.allowed_write_resources:
                 raise PolicyDeniedError(f"Write access to resource '{resource}' is not allowed.")
         else:
@@ -71,6 +81,34 @@ class NamespacePolicy:
 
         self._validate_pod_security(manifest)
         return kind, resource, name
+
+    def validate_manifest_for_verb(self, manifest: dict[str, Any], verb: str) -> tuple[str, str, str]:
+        kind, resource, name = self.validate_manifest(manifest)
+        self.assert_resource_allowed(resource, verb)
+        return kind, resource, name
+
+    def validate_patch_payload(self, patch: dict[str, Any]) -> None:
+        if not isinstance(patch, dict):
+            raise PolicyDeniedError("Patch body must be a JSON object.")
+        for key, value in _walk_dict(patch):
+            if key == "hostPath" and self.mutation_safety.get("reject_host_path_volumes", True):
+                raise PolicyDeniedError("hostPath volumes are blocked by policy.")
+            if key == "privileged" and value is True and self.mutation_safety.get(
+                "reject_privileged_containers", True
+            ):
+                raise PolicyDeniedError("Privileged containers are blocked by policy.")
+            if key == "serviceAccountName" and value and self.mutation_safety.get(
+                "reject_service_account_override", True
+            ):
+                raise PolicyDeniedError("serviceAccountName override is blocked by policy.")
+            if key == "hostNetwork" and value is True and self.mutation_safety.get(
+                "reject_host_network", True
+            ):
+                raise PolicyDeniedError("hostNetwork is blocked by policy.")
+            if key == "hostPID" and value is True and self.mutation_safety.get("reject_host_pid", True):
+                raise PolicyDeniedError("hostPID is blocked by policy.")
+            if key == "hostIPC" and value is True and self.mutation_safety.get("reject_host_ipc", True):
+                raise PolicyDeniedError("hostIPC is blocked by policy.")
 
     def _validate_pod_security(self, manifest: dict[str, Any]) -> None:
         kind = str(manifest.get("kind", ""))
@@ -135,6 +173,18 @@ def kind_to_resource(kind: str) -> str:
     if kind not in mapping:
         raise PolicyDeniedError(f"Kind '{kind}' is not supported by this MCP server.")
     return mapping[kind]
+
+
+def _walk_dict(value: Any) -> list[tuple[str, Any]]:
+    pairs: list[tuple[str, Any]] = []
+    if isinstance(value, dict):
+        for k, v in value.items():
+            pairs.append((str(k), v))
+            pairs.extend(_walk_dict(v))
+    elif isinstance(value, list):
+        for item in value:
+            pairs.extend(_walk_dict(item))
+    return pairs
 
 
 policy = NamespacePolicy()

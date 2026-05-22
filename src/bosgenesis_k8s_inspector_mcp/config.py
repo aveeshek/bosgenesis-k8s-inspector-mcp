@@ -28,6 +28,14 @@ class EnvSettings(BaseSettings):
     api_host: str = Field(default="0.0.0.0")
     api_port: int = Field(default=8080)
     api_key: str | None = Field(default=None)
+    mcp_allowed_hosts: str = Field(
+        default=(
+            "localhost,127.0.0.1,k8s-inspector.bosgenesis.local,"
+            "bosgenesis-k8s-inspector-mcp,"
+            "bosgenesis-k8s-inspector-mcp.bosgenesis.svc,"
+            "bosgenesis-k8s-inspector-mcp.bosgenesis.svc.cluster.local"
+        )
+    )
     audit_log_file: str = Field(default="/tmp/bosgenesis-k8s-inspector-audit.jsonl")
     otel_enabled: bool = Field(default=True)
     otel_service_name: str = Field(default="bosgenesis-k8s-inspector-mcp")
@@ -109,7 +117,8 @@ class AppConfig:
     @property
     def k8s_auth_mode(self) -> str:
         return str(
-            os.getenv("K8S_AUTH_MODE")
+            os.getenv("BOSGENESIS_K8S_AUTH_MODE")
+            or os.getenv("K8S_AUTH_MODE")
             or self.env_aliases.get("K8S_AUTH_MODE")
             or self.env.k8s_auth_mode
             or self.settings.get("kubernetes", {}).get("auth_mode")
@@ -119,7 +128,8 @@ class AppConfig:
     @property
     def kubeconfig_path(self) -> str:
         path = (
-            os.getenv("KUBECONFIG")
+            os.getenv("BOSGENESIS_KUBECONFIG_PATH")
+            or os.getenv("KUBECONFIG")
             or self.env_aliases.get("KUBECONFIG")
             or self.env.kubeconfig_path
             or self.settings.get("kubernetes", {}).get("kubeconfig_path")
@@ -136,6 +146,11 @@ class AppConfig:
             or self.settings.get("kubernetes", {}).get("kubeconfig_context")
             or None
         )
+
+    @property
+    def mcp_allowed_hosts(self) -> list[str]:
+        raw = self.env.mcp_allowed_hosts
+        return [host.strip() for host in raw.split(",") if host.strip()]
 
 
 config = AppConfig()

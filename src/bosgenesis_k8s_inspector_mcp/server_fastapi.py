@@ -1,21 +1,43 @@
 from __future__ import annotations
 
+from contextlib import asynccontextmanager
+from secrets import compare_digest
+
 import uvicorn
 from fastapi import Depends, FastAPI, Header, HTTPException, Query
 from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
 
 from .config import config
 from .errors import KubernetesOperationError, PolicyDeniedError
-from .models import ApplyManifestRequest, DeleteResourceRequest, PatchResourceRequest, ScaleDeploymentRequest
+from .k8s_client import auth_diagnostics
+from .models import (
+    ApplyManifestRequest,
+    BindPodRequest,
+    DeleteCollectionRequest,
+    DeleteResourceRequest,
+    ManifestMutationRequest,
+    PatchResourceRequest,
+    ScaleDeploymentRequest,
+)
 from .operations import ops
+from .server_mcp import mcp as mcp_server
+from .server_mcp import streamable_http_app
 from .telemetry import setup_telemetry
 
 setup_telemetry()
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    async with mcp_server.session_manager.run():
+        yield
+
 
 app = FastAPI(
     title="BOS Genesis Kubernetes Inspector MCP API",
     version="0.1.0",
     description="Namespace-scoped Kubernetes inspector/operator API for BOS Genesis.",
+    lifespan=lifespan,
 )
 FastAPIInstrumentor.instrument_app(app)
 
@@ -27,7 +49,20 @@ def require_api_key(x_api_key: str | None = Header(default=None)) -> None:
     if not expected or expected == "change-me-later":
         # Allow local bootstrap, but force users to set a real key before serious use.
         return
-    if x_api_key != expected:
+    if not x_api_key or not compare_digest(x_api_key, expected):
+        raise HTTPException(status_code=401, detail="Invalid or missing X-API-Key")
+
+
+def require_mutation_api_key(x_api_key: str | None = Header(default=None)) -> None:
+    if not config.require_api_key:
+        return
+    expected = config.env.api_key
+    if not expected or expected == "change-me-later":
+        raise HTTPException(
+            status_code=503,
+            detail="Mutating endpoints require a non-placeholder BOSGENESIS_API_KEY.",
+        )
+    if not x_api_key or not compare_digest(x_api_key, expected):
         raise HTTPException(status_code=401, detail="Invalid or missing X-API-Key")
 
 
@@ -46,6 +81,9 @@ def health() -> dict:
         "service": "bosgenesis-k8s-inspector-mcp",
         "namespace": config.namespace,
         "mode": "api",
+        "k8s_auth_mode": config.k8s_auth_mode,
+        "k8s_auth": auth_diagnostics(),
+        "mcp_endpoint": "/mcp",
         "otel_enabled": config.env.otel_enabled,
     }
 
@@ -122,7 +160,7 @@ def list_events(actor: str = Query(default="codex")) -> list[dict]:
         raise handle_error(exc)
 
 
-@app.post("/apply", dependencies=[Depends(require_api_key)])
+@app.post("/apply", dependencies=[Depends(require_mutation_api_key)])
 def apply_manifest(req: ApplyManifestRequest) -> dict:
     try:
         return ops.apply_manifest(
@@ -135,7 +173,33 @@ def apply_manifest(req: ApplyManifestRequest) -> dict:
         raise handle_error(exc)
 
 
-@app.post("/delete", dependencies=[Depends(require_api_key)])
+@app.post("/create", dependencies=[Depends(require_mutation_api_key)])
+def create_resource(req: ManifestMutationRequest) -> dict:
+    try:
+        return ops.create_manifest(
+            manifest=req.manifest,
+            dry_run=req.dry_run,
+            actor=req.actor,
+            correlation_id=req.correlation_id,
+        ).model_dump()
+    except Exception as exc:
+        raise handle_error(exc)
+
+
+@app.post("/update", dependencies=[Depends(require_mutation_api_key)])
+def update_resource(req: ManifestMutationRequest) -> dict:
+    try:
+        return ops.update_manifest(
+            manifest=req.manifest,
+            dry_run=req.dry_run,
+            actor=req.actor,
+            correlation_id=req.correlation_id,
+        ).model_dump()
+    except Exception as exc:
+        raise handle_error(exc)
+
+
+@app.post("/delete", dependencies=[Depends(require_mutation_api_key)])
 def delete_resource(req: DeleteResourceRequest) -> dict:
     try:
         return ops.delete_resource(
@@ -150,7 +214,23 @@ def delete_resource(req: DeleteResourceRequest) -> dict:
         raise handle_error(exc)
 
 
-@app.post("/patch", dependencies=[Depends(require_api_key)])
+@app.post("/deletecollection", dependencies=[Depends(require_mutation_api_key)])
+def delete_collection(req: DeleteCollectionRequest) -> dict:
+    try:
+        return ops.delete_collection(
+            resource=req.resource,
+            namespace=req.namespace,
+            label_selector=req.label_selector,
+            field_selector=req.field_selector,
+            dry_run=req.dry_run,
+            actor=req.actor,
+            correlation_id=req.correlation_id,
+        ).model_dump()
+    except Exception as exc:
+        raise handle_error(exc)
+
+
+@app.post("/patch", dependencies=[Depends(require_mutation_api_key)])
 def patch_resource(req: PatchResourceRequest) -> dict:
     try:
         return ops.patch_resource(
@@ -166,7 +246,22 @@ def patch_resource(req: PatchResourceRequest) -> dict:
         raise handle_error(exc)
 
 
-@app.post("/scale/deployment", dependencies=[Depends(require_api_key)])
+@app.post("/bind", dependencies=[Depends(require_mutation_api_key)])
+def bind_pod(req: BindPodRequest) -> dict:
+    try:
+        return ops.bind_pod(
+            pod_name=req.pod_name,
+            node_name=req.node_name,
+            namespace=req.namespace,
+            dry_run=req.dry_run,
+            actor=req.actor,
+            correlation_id=req.correlation_id,
+        ).model_dump()
+    except Exception as exc:
+        raise handle_error(exc)
+
+
+@app.post("/scale/deployment", dependencies=[Depends(require_mutation_api_key)])
 def scale_deployment(req: ScaleDeploymentRequest) -> dict:
     try:
         return ops.scale_deployment(
@@ -179,6 +274,9 @@ def scale_deployment(req: ScaleDeploymentRequest) -> dict:
         ).model_dump()
     except Exception as exc:
         raise handle_error(exc)
+
+
+app.mount("/", streamable_http_app(), name="mcp")
 
 
 def run() -> None:

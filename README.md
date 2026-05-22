@@ -17,6 +17,7 @@ The project is intentionally designed with:
 - no direct access to Kubernetes secrets
 - no RBAC mutation access
 - policy validation before every write
+- API-key enforcement before every write
 - JSONL audit logging
 - OpenTelemetry traces to SigNoz
 - config-file-based settings that can later be replaced with Vault
@@ -33,6 +34,7 @@ Main endpoints:
 
 ```text
 GET  /health
+POST /mcp
 GET  /namespace/summary
 GET  /pods
 GET  /pods/{pod_name}
@@ -43,14 +45,24 @@ GET  /statefulsets
 GET  /ingresses
 GET  /events
 POST /apply
+POST /create
+POST /update
 POST /delete
+POST /deletecollection
 POST /patch
+POST /bind
 POST /scale/deployment
 ```
 
 ### MCP tools
 
-Useful for Codex or other MCP-compatible clients.
+Useful for Codex or other MCP-compatible clients over stdio or Streamable HTTP.
+
+Remote MCP endpoint:
+
+```text
+http://k8s-inspector.bosgenesis.local/mcp
+```
 
 Tools:
 
@@ -65,8 +77,12 @@ k8s_list_statefulsets
 k8s_list_ingresses
 k8s_list_events
 k8s_apply_manifest
+k8s_create_resource
+k8s_update_resource
 k8s_delete_resource
+k8s_delete_collection
 k8s_patch_resource
+k8s_bind_pod
 k8s_scale_deployment
 ```
 
@@ -125,6 +141,7 @@ resource is allowed
 kind is not cluster-scoped
 kind is not blocked
 pod security settings are safe
+mutation request includes the configured API key
 ```
 
 Default blocked items:
@@ -174,6 +191,7 @@ BOSGENESIS_ALLOWED_NAMESPACE=bosgenesis
 BOSGENESIS_K8S_AUTH_MODE=in_cluster
 BOSGENESIS_KUBECONFIG_PATH=/config/kubeconfig
 BOSGENESIS_API_KEY=change-me-later
+BOSGENESIS_MCP_ALLOWED_HOSTS=k8s-inspector.bosgenesis.local,bosgenesis-k8s-inspector-mcp.bosgenesis.svc
 BOSGENESIS_OTEL_EXPORTER_OTLP_ENDPOINT=http://signoz-otel-collector.signoz:4317
 ```
 
@@ -220,6 +238,7 @@ Open:
 
 ```text
 http://localhost:8080/health
+http://localhost:8080/mcp
 ```
 
 Run MCP server over stdio:
@@ -227,6 +246,8 @@ Run MCP server over stdio:
 ```bash
 python -m bosgenesis_k8s_inspector_mcp.server_mcp
 ```
+
+The REST API process also mounts the same MCP tool surface at `/mcp` for remote clients.
 
 ---
 
@@ -279,6 +300,12 @@ Validate:
 ```bash
 kubectl get pod,svc,ingress -n bosgenesis | grep k8s-inspector
 curl http://k8s-inspector.bosgenesis.local/health
+```
+
+Codex remote MCP URL:
+
+```text
+http://k8s-inspector.bosgenesis.local/mcp
 ```
 
 ---
@@ -374,6 +401,7 @@ Prepare a dry-run patch first.
 Show me the planned change.
 Only after I approve, apply the real change.
 Only operate inside bosgenesis.
+Use dry_run=true before real create/update/patch/delete/deletecollection/bind operations.
 ```
 
 ---
@@ -389,9 +417,9 @@ Vault integration
 human approval workflow
 OPA/Kyverno policy integration
 persistent audit database sink
-MCP streamable HTTP transport deployment
 multi-namespace mode
 secret management
+secret object create/update/patch/delete
 pod exec / attach / port-forward
 ```
 
@@ -409,7 +437,7 @@ Recommended next versions:
 
 ## 12. Important warning
 
-This service can create, update, patch, and delete resources inside `bosgenesis`.
+This service can create, update, patch, bind, delete, and delete filtered collections of allowed resources inside `bosgenesis`.
 
 Even with namespace-only RBAC, mutation access is powerful. Keep the following defaults unless there is a strong reason to loosen them:
 
