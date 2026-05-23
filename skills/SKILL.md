@@ -30,6 +30,7 @@ Use:
 - `k8s_namespace_summary`
 - `k8s_list_pods`
 - `k8s_list_services`
+- `k8s_list_configmaps`
 - `k8s_list_pvcs`
 - `k8s_list_deployments`
 - `k8s_list_statefulsets`
@@ -70,6 +71,15 @@ Use:
 - `k8s_list_events`
 
 Check phase, storage class, access modes, requested size, bound volume name, capacity, and recent events.
+
+### Inspect ConfigMaps
+
+Use:
+
+- `k8s_list_configmaps`
+- `k8s_get_configmap`
+
+List ConfigMaps first to inspect names, labels, annotations, and key names. Use `include_data=true` only when values are explicitly needed, because ConfigMaps can accidentally contain sensitive non-Secret data.
 
 ## Write Workflows
 
@@ -160,6 +170,8 @@ Use these MCP tools:
 - `k8s_describe_pod`
 - `k8s_get_pod_logs`
 - `k8s_list_services`
+- `k8s_list_configmaps`
+- `k8s_get_configmap`
 - `k8s_list_pvcs`
 - `k8s_describe_pvc`
 - `k8s_list_deployments`

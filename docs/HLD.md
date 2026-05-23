@@ -79,7 +79,7 @@ flowchart TB
 | FastAPI server | Serves REST API and mounts Streamable HTTP MCP at `/mcp`. |
 | FastMCP server | Exposes MCP tools for reads and governed writes. |
 | Policy engine | Enforces namespace, blocked resources, supported resources, and pod safety rules. |
-| Operation layer | Normalizes Kubernetes list, apply, create, update, patch, delete, bind, and scale operations. |
+| Operation layer | Normalizes Kubernetes list, get, apply, create, update, patch, delete, bind, and scale operations. |
 | Kubernetes client | Uses in-cluster ServiceAccount token through explicit bearer authentication. |
 | Audit logger | Emits JSON audit records for allowed, denied, successful, and failed operations. |
 | Telemetry | Emits OpenTelemetry spans to SigNoz when enabled. |
@@ -126,13 +126,13 @@ Allowed read resources:
 - Pods
 - Pod logs
 - Services
+- ConfigMaps
 - Deployments
 - ReplicaSets
 - StatefulSets
 - DaemonSets
 - Jobs
 - CronJobs
-- ConfigMaps
 - Events
 - Ingresses
 - PersistentVolumeClaims
@@ -163,6 +163,8 @@ Blocked resources:
 - CustomResourceDefinitions
 - Pods exec, attach, and port-forward
 
+ConfigMap reads are deliberately narrower than full raw Kubernetes objects by default. List operations return metadata and key names only, and single ConfigMap reads return values only when `include_data=true` is explicitly requested. This keeps ConfigMaps useful for diagnostics while preserving the stronger Secret guardrail.
+
 ## Availability and Operations
 
 The service is deployed as a single replica by default. It is stateless except for ephemeral audit logs mounted on an `emptyDir`. It can be horizontally scaled later if audit persistence moves to a durable backend.
@@ -178,4 +180,3 @@ Health endpoint:
 ```text
 http://k8s-inspector.bosgenesis.local/health
 ```
-

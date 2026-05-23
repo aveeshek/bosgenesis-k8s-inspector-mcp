@@ -52,6 +52,8 @@ Important routes:
 | `/mcp` | POST | Streamable HTTP MCP endpoint. |
 | `/pods` | GET | List pods. |
 | `/services` | GET | List services. |
+| `/configmaps` | GET | List ConfigMaps with metadata and key names only. |
+| `/configmaps/{configmap_name}` | GET | Read one ConfigMap; values require `include_data=true`. |
 | `/deployments` | GET | List deployments. |
 | `/apply` | POST | Server-side apply. |
 | `/create` | POST | Create supported resource. |
@@ -92,6 +94,8 @@ Read tools:
 - `k8s_describe_pod`
 - `k8s_get_pod_logs`
 - `k8s_list_services`
+- `k8s_list_configmaps`
+- `k8s_get_configmap`
 - `k8s_list_deployments`
 - `k8s_list_statefulsets`
 - `k8s_list_ingresses`
@@ -315,4 +319,3 @@ Current tests cover:
 - Kubernetes auth diagnostics and ServiceAccount header construction.
 - Deletecollection selector requirement.
 - Policy rejection of Secrets, wrong namespaces, hostPath, and dangerous patches.
-

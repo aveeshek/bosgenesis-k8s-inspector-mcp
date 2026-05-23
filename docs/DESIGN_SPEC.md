@@ -23,7 +23,7 @@ The service provides a controlled remote MCP surface that runs inside Kubernetes
 |---|---|
 | FR-1 | Expose remote MCP tools over HTTP at `/mcp`. |
 | FR-2 | Expose REST health and operational endpoints. |
-| FR-3 | List pods, services, deployments, statefulsets, ingresses, and events in `bosgenesis`. |
+| FR-3 | List pods, services, ConfigMaps, PersistentVolumeClaims, deployments, statefulsets, ingresses, and events in `bosgenesis`. |
 | FR-4 | Describe pods and fetch bounded pod logs. |
 | FR-5 | Apply, create, update, patch, delete, deletecollection, bind, and scale supported resources. |
 | FR-6 | Support dry-run on mutating Kubernetes operations where Kubernetes supports it. |
@@ -72,6 +72,10 @@ MCP clients must:
 | `/pods/{pod_name}` | GET | Yes when configured | Describe pod. |
 | `/pods/{pod_name}/logs` | GET | Yes when configured | Pod logs. |
 | `/services` | GET | Yes when configured | List services. |
+| `/configmaps` | GET | Yes when configured | List ConfigMaps with metadata and key names only. |
+| `/configmaps/{configmap_name}` | GET | Yes when configured | Read one ConfigMap; values require `include_data=true`. |
+| `/pvcs` | GET | Yes when configured | List PersistentVolumeClaims. |
+| `/pvcs/{pvc_name}` | GET | Yes when configured | Describe PersistentVolumeClaim. |
 | `/deployments` | GET | Yes when configured | List deployments. |
 | `/statefulsets` | GET | Yes when configured | List statefulsets. |
 | `/ingresses` | GET | Yes when configured | List ingresses. |
@@ -91,12 +95,16 @@ MCP clients must:
 
 ```json
 {
-  "name": "k8s_list_pods",
+  "name": "k8s_get_configmap",
   "arguments": {
+    "configmap_name": "example-config",
+    "include_data": false,
     "actor": "codex"
   }
 }
 ```
+
+By default, ConfigMap reads return metadata and key names only. Set `include_data=true` only when values are explicitly needed. Kubernetes Secrets are never exposed through the MCP or REST surfaces.
 
 ### Mutation Tool Example
 
@@ -276,6 +284,8 @@ automountServiceAccountToken: true
 | AC-8 | Secret manifests are denied. |
 | AC-9 | Privileged and hostPath pod specs are denied. |
 | AC-10 | Mutating tools fail without a valid API key. |
+| AC-11 | MCP `k8s_list_configmaps` returns ConfigMap metadata and key names without values. |
+| AC-12 | MCP `k8s_get_configmap` returns ConfigMap values only when `include_data=true`. |
 
 ## Manual Verification
 
@@ -320,8 +330,8 @@ curl -i -N \
 |---|---|
 | Agent attempts cross-namespace access | Namespace policy and namespace-scoped RBAC. |
 | Agent attempts Secret access | Policy blocks Secrets and RBAC omits Secrets. |
+| ConfigMap accidentally contains sensitive values | List responses omit values; get responses require explicit `include_data=true`. |
 | Agent attempts privileged pod creation | Pod security validation rejects unsafe fields. |
 | Kubernetes auth becomes anonymous | Explicit ServiceAccount bearer token header in Kubernetes ApiClient. |
 | Accidental broad deletecollection | Requires label or field selector and dry-run is recommended. |
 | Exposed public endpoint | Use ingress/network controls and API-key guardrails for mutation. |
-

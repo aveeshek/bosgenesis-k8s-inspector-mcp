@@ -41,7 +41,7 @@ sequenceDiagram
     participant A as Audit JSONL
     participant S as SigNoz
 
-    C->>M: list/apply/patch/delete request
+    C->>M: list/get/apply/patch/delete request
     M->>P: validate namespace, resource, safety
     P-->>M: allow or deny
     M->>A: write started/denied event
@@ -56,3 +56,13 @@ sequenceDiagram
       M-->>C: policy denied response
     end
 ```
+
+## ConfigMap read boundary
+
+ConfigMaps are allowed namespaced application configuration resources, but they can still contain sensitive values when applications misuse them. The direct ConfigMap read surface is therefore intentionally split:
+
+- `k8s_list_configmaps` and `GET /configmaps` return names, labels, annotations, and key names only.
+- `k8s_get_configmap` and `GET /configmaps/{configmap_name}` return key names by default.
+- ConfigMap values are returned only when the caller explicitly sets `include_data=true`.
+
+This does not change the hard Secret guardrail. Kubernetes Secrets remain blocked by policy and are not granted by RBAC.

@@ -56,6 +56,71 @@ def test_list_pvcs_returns_namespace_scoped_summaries(monkeypatch):
     ]
 
 
+def test_list_configmaps_returns_key_summaries_without_values(monkeypatch):
+    configmap = SimpleNamespace(
+        metadata=SimpleNamespace(
+            name="app-config",
+            namespace="bosgenesis",
+            labels={"app": "demo"},
+            annotations={},
+            creation_timestamp=None,
+        ),
+        data={"PASSWORD_LIKE_NAME": "not-returned", "app.yaml": "debug: true"},
+        binary_data={"cert.bin": "AA=="},
+    )
+    fake_core = SimpleNamespace(
+        list_namespaced_config_map=lambda namespace: SimpleNamespace(items=[configmap])
+    )
+    monkeypatch.setattr(
+        "bosgenesis_k8s_inspector_mcp.operations.core_v1",
+        lambda: fake_core,
+    )
+
+    result = ops.list_configmaps(actor="test")
+
+    assert result == [
+        {
+            "name": "app-config",
+            "namespace": "bosgenesis",
+            "data_keys": ["PASSWORD_LIKE_NAME", "app.yaml"],
+            "binary_data_keys": ["cert.bin"],
+            "data_key_count": 2,
+            "binary_data_key_count": 1,
+            "labels": {"app": "demo"},
+            "annotations": {},
+            "created_at": None,
+        }
+    ]
+    assert "not-returned" not in str(result)
+
+
+def test_get_configmap_returns_data_only_when_requested(monkeypatch):
+    configmap = SimpleNamespace(
+        metadata=SimpleNamespace(
+            name="app-config",
+            namespace="bosgenesis",
+            labels={},
+            annotations={},
+            creation_timestamp=None,
+        ),
+        data={"app.yaml": "debug: true"},
+        binary_data={},
+    )
+    fake_core = SimpleNamespace(
+        read_namespaced_config_map=lambda name, namespace: configmap
+    )
+    monkeypatch.setattr(
+        "bosgenesis_k8s_inspector_mcp.operations.core_v1",
+        lambda: fake_core,
+    )
+
+    hidden = ops.get_configmap("app-config", actor="test")
+    visible = ops.get_configmap("app-config", include_data=True, actor="test")
+
+    assert "data" not in hidden
+    assert visible["data"] == {"app.yaml": "debug: true"}
+
+
 def test_create_pvc_rejects_non_pvc_manifest():
     with pytest.raises(PolicyDeniedError):
         ops.create_pvc(

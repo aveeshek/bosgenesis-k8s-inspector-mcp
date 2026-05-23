@@ -130,6 +130,26 @@ def list_services(actor: str = Query(default="codex")) -> list[dict]:
         raise handle_error(exc)
 
 
+@app.get("/configmaps", dependencies=[Depends(require_api_key)])
+def list_configmaps(actor: str = Query(default="codex")) -> list[dict]:
+    try:
+        return ops.list_configmaps(actor=actor)
+    except Exception as exc:
+        raise handle_error(exc)
+
+
+@app.get("/configmaps/{configmap_name}", dependencies=[Depends(require_api_key)])
+def get_configmap(
+    configmap_name: str,
+    include_data: bool = Query(default=False),
+    actor: str = Query(default="codex"),
+) -> dict:
+    try:
+        return ops.get_configmap(configmap_name, include_data=include_data, actor=actor)
+    except Exception as exc:
+        raise handle_error(exc)
+
+
 @app.get("/pvcs", dependencies=[Depends(require_api_key)])
 def list_pvcs(actor: str = Query(default="codex")) -> list[dict]:
     try:

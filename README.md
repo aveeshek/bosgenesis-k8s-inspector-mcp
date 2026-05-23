@@ -40,6 +40,8 @@ GET  /pods
 GET  /pods/{pod_name}
 GET  /pods/{pod_name}/logs
 GET  /services
+GET  /configmaps
+GET  /configmaps/{configmap_name}
 GET  /pvcs
 GET  /pvcs/{pvc_name}
 GET  /deployments
@@ -79,6 +81,8 @@ k8s_list_pods
 k8s_describe_pod
 k8s_get_pod_logs
 k8s_list_services
+k8s_list_configmaps
+k8s_get_configmap
 k8s_list_pvcs
 k8s_describe_pvc
 k8s_list_deployments

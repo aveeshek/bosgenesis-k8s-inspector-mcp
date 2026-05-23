@@ -17,6 +17,8 @@ http://k8s-inspector.bosgenesis.local/mcp
 | `k8s_describe_pod` | Describe one pod |
 | `k8s_get_pod_logs` | Get recent pod logs |
 | `k8s_list_services` | List services |
+| `k8s_list_configmaps` | List ConfigMaps with metadata and key names only |
+| `k8s_get_configmap` | Read one ConfigMap; values are returned only when `include_data=true` |
 | `k8s_list_pvcs` | List PersistentVolumeClaims |
 | `k8s_describe_pvc` | Describe one PersistentVolumeClaim |
 | `k8s_list_deployments` | List deployments |

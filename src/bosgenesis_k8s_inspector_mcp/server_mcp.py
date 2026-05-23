@@ -61,6 +61,26 @@ def k8s_list_services(actor: str = "codex") -> list[dict[str, Any]]:
 
 
 @mcp.tool()
+def k8s_list_configmaps(actor: str = "codex") -> list[dict[str, Any]]:
+    """List ConfigMaps in the allowed namespace without returning data values."""
+    return ops.list_configmaps(actor=actor)
+
+
+@mcp.tool()
+def k8s_get_configmap(
+    configmap_name: str,
+    include_data: bool = False,
+    actor: str = "codex",
+) -> dict[str, Any]:
+    """Read one ConfigMap in the allowed namespace.
+
+    By default this returns metadata and key names only. Set include_data=true
+    when the ConfigMap values are explicitly needed.
+    """
+    return ops.get_configmap(configmap_name, include_data=include_data, actor=actor)
+
+
+@mcp.tool()
 def k8s_list_pvcs(actor: str = "codex") -> list[dict[str, Any]]:
     """List PersistentVolumeClaims in the allowed namespace only."""
     return ops.list_pvcs(actor=actor)

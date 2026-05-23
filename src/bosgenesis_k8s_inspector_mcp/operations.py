@@ -141,6 +141,55 @@ class KubernetesOperations:
         audit_logger.emit(action="list", resource="services", namespace=self.namespace, status="success", actor=actor, tool="k8s_list_services", response_summary={"count": len(result)})
         return result
 
+    def list_configmaps(self, actor: str = "codex") -> list[dict[str, Any]]:
+        policy.assert_namespace(self.namespace)
+        policy.assert_resource_allowed("configmaps", "list")
+        items = core_v1().list_namespaced_config_map(namespace=self.namespace).items
+        result = [self._configmap_summary(configmap) for configmap in items]
+        audit_logger.emit(
+            action="list",
+            resource="configmaps",
+            namespace=self.namespace,
+            status="success",
+            actor=actor,
+            tool="k8s_list_configmaps",
+            response_summary={"count": len(result)},
+        )
+        return result
+
+    def get_configmap(
+        self,
+        name: str,
+        include_data: bool = False,
+        actor: str = "codex",
+    ) -> dict[str, Any]:
+        policy.assert_namespace(self.namespace)
+        policy.assert_resource_allowed("configmaps", "get")
+        with audit_logger.span(
+            "k8s.get_configmap",
+            {"k8s.namespace": self.namespace, "k8s.configmap": name},
+        ):
+            configmap = core_v1().read_namespaced_config_map(name=name, namespace=self.namespace)
+            result = self._configmap_summary(configmap)
+            if include_data:
+                result["data"] = configmap.data or {}
+                result["binary_data"] = configmap.binary_data or {}
+            audit_logger.emit(
+                action="get",
+                resource="configmaps",
+                namespace=self.namespace,
+                name=name,
+                status="success",
+                actor=actor,
+                tool="k8s_get_configmap",
+                response_summary={
+                    "data_keys": result["data_keys"],
+                    "binary_data_keys": result["binary_data_keys"],
+                    "include_data": include_data,
+                },
+            )
+            return result
+
     def list_pvcs(self, actor: str = "codex") -> list[dict[str, Any]]:
         policy.assert_namespace(self.namespace)
         policy.assert_resource_allowed("persistentvolumeclaims", "list")
@@ -823,6 +872,22 @@ class KubernetesOperations:
             "capacity": capacity,
             "volume_mode": pvc.spec.volume_mode if pvc.spec else None,
             "created_at": str(pvc.metadata.creation_timestamp) if pvc.metadata.creation_timestamp else None,
+        }
+
+    @staticmethod
+    def _configmap_summary(configmap: Any) -> dict[str, Any]:
+        data = configmap.data or {}
+        binary_data = configmap.binary_data or {}
+        return {
+            "name": configmap.metadata.name,
+            "namespace": configmap.metadata.namespace,
+            "data_keys": sorted(data.keys()),
+            "binary_data_keys": sorted(binary_data.keys()),
+            "data_key_count": len(data),
+            "binary_data_key_count": len(binary_data),
+            "labels": configmap.metadata.labels or {},
+            "annotations": configmap.metadata.annotations or {},
+            "created_at": str(configmap.metadata.creation_timestamp) if configmap.metadata.creation_timestamp else None,
         }
 
 
