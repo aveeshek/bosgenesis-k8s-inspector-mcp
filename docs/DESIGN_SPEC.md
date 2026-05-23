@@ -31,6 +31,7 @@ The service provides a controlled remote MCP surface that runs inside Kubernetes
 | FR-8 | Reject blocked resources and unsafe pod specs. |
 | FR-9 | Emit audit records for all tool/API operations. |
 | FR-10 | Emit OpenTelemetry spans when enabled. |
+| FR-11 | Create and delete MCP-owned temporary Secrets without exposing Secret values. |
 
 ## Non-Functional Requirements
 
@@ -41,9 +42,10 @@ The service provides a controlled remote MCP surface that runs inside Kubernetes
 | NFR-3 | Mutating REST endpoints must require `X-API-Key`. |
 | NFR-4 | Mutating MCP tools must require an `api_key` tool argument. |
 | NFR-5 | The service must fail closed when API key is missing or placeholder. |
-| NFR-6 | The service must not read or write Kubernetes Secrets. |
+| NFR-6 | The service must not read, list, update, patch, or generically apply Kubernetes Secrets. |
 | NFR-7 | The service must not create or modify RBAC resources. |
 | NFR-8 | The service must keep responses structured for agent summarization. |
+| NFR-9 | Ephemeral Secret operations must never return Secret values in responses or audit summaries. |
 
 ## External Interfaces
 
@@ -83,6 +85,8 @@ MCP clients must:
 | `/apply` | POST | Required | Server-side apply. |
 | `/create` | POST | Required | Create resource. |
 | `/update` | POST | Required | Replace resource. |
+| `/secrets/ephemeral` | POST | Required | Create MCP-owned temporary Secret without returning values. |
+| `/secrets/ephemeral/delete` | POST | Required | Delete MCP-owned temporary Secret with matching in-session correlation ID. |
 | `/patch` | POST | Required | Patch resource. |
 | `/delete` | POST | Required | Delete resource. |
 | `/deletecollection` | POST | Required | Delete filtered collection. |
@@ -121,6 +125,26 @@ By default, ConfigMap reads return metadata and key names only. Set `include_dat
   }
 }
 ```
+
+### Ephemeral Secret Tool Example
+
+```json
+{
+  "name": "k8s_create_ephemeral_secret",
+  "arguments": {
+    "name": "bosgenesis-mcp-chart-password",
+    "string_data_json": "{\"password\":\"redacted-here\"}",
+    "ttl_seconds": 3600,
+    "dry_run": true,
+    "actor": "codex",
+    "api_key": "configured-api-key"
+  }
+}
+```
+
+The response includes only the Secret name, key names, TTL, expiry, and correlation ID. It never returns Secret values. Use the returned correlation ID with `k8s_delete_ephemeral_secret` during the same MCP server session.
+
+Kubernetes does not auto-delete Secrets based on custom expiry annotations. The TTL is used for MCP session memory expiry and future cleanup-controller compatibility; callers should explicitly delete temporary Secrets after the install workflow.
 
 ## End-to-End Request Flow
 
@@ -208,6 +232,18 @@ Reject user payloads containing:
 - privileged containers
 - serviceAccountName override
 
+### Ephemeral Secret Exception
+
+Secrets stay blocked for generic manifest operations and all read paths. A dedicated exception exists for temporary installation workflows:
+
+- create only through `k8s_create_ephemeral_secret`
+- delete only through `k8s_delete_ephemeral_secret`
+- no read/list/get/update/patch tools
+- name must start with `bosgenesis-mcp-`
+- mutation API key required
+- values are never returned
+- deletion requires matching in-session correlation ID
+
 ## RBAC Specification
 
 ```mermaid
@@ -216,10 +252,10 @@ flowchart LR
     SA --> RB["RoleBinding"]
     RB --> Role["Role in bosgenesis"]
     Role --> Allowed["Allowed namespaced resources"]
-    Role -. "does not grant" .-> Blocked["Secrets / RBAC / Nodes / Namespaces"]
+    Role -. "does not grant read/update/patch" .-> Blocked["Secrets / RBAC / Nodes / Namespaces"]
 ```
 
-The Kubernetes Role is namespace-local and grants only the verbs and resources needed by the MCP server policy.
+The Kubernetes Role is namespace-local and grants only the verbs and resources needed by the MCP server policy. For Secrets, it grants only `create` and `delete`; it does not grant `get`, `list`, `watch`, `update`, or `patch`.
 
 ## Deployment Specification
 
@@ -286,6 +322,8 @@ automountServiceAccountToken: true
 | AC-10 | Mutating tools fail without a valid API key. |
 | AC-11 | MCP `k8s_list_configmaps` returns ConfigMap metadata and key names without values. |
 | AC-12 | MCP `k8s_get_configmap` returns ConfigMap values only when `include_data=true`. |
+| AC-13 | MCP `k8s_create_ephemeral_secret` never returns Secret values. |
+| AC-14 | MCP `k8s_delete_ephemeral_secret` requires a matching in-session correlation ID. |
 
 ## Manual Verification
 
@@ -329,8 +367,9 @@ curl -i -N \
 | Risk | Mitigation |
 |---|---|
 | Agent attempts cross-namespace access | Namespace policy and namespace-scoped RBAC. |
-| Agent attempts Secret access | Policy blocks Secrets and RBAC omits Secrets. |
+| Agent attempts Secret access | Policy blocks generic Secret operations, exposes no Secret read tools, and RBAC omits Secret read/update/patch verbs. |
 | ConfigMap accidentally contains sensitive values | List responses omit values; get responses require explicit `include_data=true`. |
+| Secret value leaks through temporary Secret workflow | Responses and audit summaries include key names only, never values. |
 | Agent attempts privileged pod creation | Pod security validation rejects unsafe fields. |
 | Kubernetes auth becomes anonymous | Explicit ServiceAccount bearer token header in Kubernetes ApiClient. |
 | Accidental broad deletecollection | Requires label or field selector and dry-run is recommended. |

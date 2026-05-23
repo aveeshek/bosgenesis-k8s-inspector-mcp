@@ -14,7 +14,8 @@ The project is intentionally designed with:
 
 - no cluster-admin access
 - no cross-namespace access
-- no direct access to Kubernetes secrets
+- no read/list/get access to Kubernetes secrets
+- write-only ephemeral Secret creation/deletion for MCP-owned `bosgenesis-mcp-*` Secrets
 - no RBAC mutation access
 - policy validation before every write
 - API-key enforcement before every write
@@ -53,6 +54,8 @@ POST /create
 POST /update
 POST /pvcs
 PUT  /pvcs/{pvc_name}
+POST /secrets/ephemeral
+POST /secrets/ephemeral/delete
 POST /delete
 DELETE /pvcs/{pvc_name}
 POST /deletecollection
@@ -94,6 +97,8 @@ k8s_create_resource
 k8s_update_resource
 k8s_create_pvc
 k8s_update_pvc
+k8s_create_ephemeral_secret
+k8s_delete_ephemeral_secret
 k8s_delete_resource
 k8s_delete_pvc
 k8s_delete_collection
@@ -145,7 +150,7 @@ ClusterRoleBinding
 access to all namespaces
 node access
 namespace access
-secret access
+secret read/list/get access
 RBAC write access
 ```
 
@@ -184,6 +189,16 @@ hostIPC
 hostPath
 privileged containers
 serviceAccountName override
+```
+
+Narrow Secret exception:
+
+```text
+k8s_create_ephemeral_secret can create MCP-owned temporary Secrets named bosgenesis-mcp-*
+k8s_delete_ephemeral_secret can delete those Secrets only with a matching in-session correlation ID
+Secret values are never returned by REST, MCP, audit summaries, or docs
+No Secret read/list/get/update/patch tools are exposed
+TTL is an in-session expiry and annotation; explicitly delete the Secret after use
 ```
 
 ---
@@ -436,8 +451,8 @@ human approval workflow
 OPA/Kyverno policy integration
 persistent audit database sink
 multi-namespace mode
-secret management
-secret object create/update/patch/delete
+full secret management
+secret read/list/get/update/patch
 pod exec / attach / port-forward
 ```
 
@@ -460,7 +475,8 @@ This service can create, update, patch, bind, delete, and delete filtered collec
 Even with namespace-only RBAC, mutation access is powerful. Keep the following defaults unless there is a strong reason to loosen them:
 
 ```text
-block secrets
+block secret read/list/get/update/patch
+allow only MCP-owned ephemeral Secret create/delete when explicitly approved
 block RBAC resources
 block service account creation/override
 block pod exec

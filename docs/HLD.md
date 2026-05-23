@@ -24,7 +24,8 @@ The service runs inside Kubernetes and uses in-cluster authentication through it
 
 - Cluster administration.
 - ClusterRole or ClusterRoleBinding management.
-- Secret inspection or mutation.
+- Secret inspection or generic mutation.
+- Generic Secret read, list, update, patch, or apply.
 - Pod exec, attach, or port-forward.
 - Bypassing the policy engine.
 - Providing raw Kubernetes credentials to Codex.
@@ -162,6 +163,15 @@ Blocked resources:
 - PersistentVolumes
 - CustomResourceDefinitions
 - Pods exec, attach, and port-forward
+
+Narrow Secret exception:
+
+- The server can create MCP-owned temporary Secrets only through `k8s_create_ephemeral_secret`.
+- The server can delete those temporary Secrets only through `k8s_delete_ephemeral_secret` with a matching in-session `correlation_id`.
+- Secret names must start with `bosgenesis-mcp-`.
+- Secret values are never returned by MCP, REST, audit summaries, or docs.
+- The server still has no Secret read/list/get/update/patch tools.
+- TTL controls in-session memory expiry and is written as an annotation; callers should explicitly delete the Secret because Kubernetes does not auto-delete Secrets from custom annotations.
 
 ConfigMap reads are deliberately narrower than full raw Kubernetes objects by default. List operations return metadata and key names only, and single ConfigMap reads return values only when `include_data=true` is explicitly requested. This keeps ConfigMaps useful for diagnostics while preserving the stronger Secret guardrail.
 

@@ -91,6 +91,26 @@ class ScaleDeploymentRequest(BaseModel):
     correlation_id: str | None = None
 
 
+class EphemeralSecretCreateRequest(BaseModel):
+    name: str
+    string_data: dict[str, str] = Field(default_factory=dict)
+    data: dict[str, str] = Field(default_factory=dict)
+    secret_type: str = "Opaque"
+    namespace: str = Field(default="bosgenesis")
+    ttl_seconds: int = Field(default=3600, ge=60, le=86400)
+    dry_run: bool = False
+    actor: str = "codex"
+    correlation_id: str | None = None
+
+
+class EphemeralSecretDeleteRequest(BaseModel):
+    name: str
+    correlation_id: str
+    namespace: str = Field(default="bosgenesis")
+    dry_run: bool = False
+    actor: str = "codex"
+
+
 class OperationResponse(BaseModel):
     status: str
     namespace: str

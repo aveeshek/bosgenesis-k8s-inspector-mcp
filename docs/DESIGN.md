@@ -226,7 +226,7 @@ Even though the user goal is add/delete/update/list inside one namespace, the fo
 
 | Resource | Recommendation | Reason |
 |---|---|---|
-| `secrets` | Exclude from v1 | Avoid credential leakage. |
+| `secrets` | Exclude read/list/get/update/patch and generic apply; allow only dedicated ephemeral create/delete | Avoid credential leakage while supporting chart installs that reference an existing Secret. |
 | `roles` / `rolebindings` | Exclude from v1 | Avoid privilege escalation within namespace. |
 | `serviceaccounts` | Exclude from v1 | Avoid credential and permission confusion. |
 | `resourcequotas` | Exclude from v1 | Could disrupt namespace capacity. |
@@ -295,6 +295,8 @@ flowchart TB
 | `k8s_scale_deployment` | Scale one deployment. | Min/max replica policy. |
 | `k8s_restart_deployment` | Restart deployment by patching annotation. | Deployment-only. |
 | `k8s_create_configmap` | Create/update ConfigMap. | Size and key validation. |
+| `k8s_create_ephemeral_secret` | Create an MCP-owned temporary Secret. | API key, `bosgenesis-mcp-*` name prefix, key-name-only response, TTL annotation. |
+| `k8s_delete_ephemeral_secret` | Delete an MCP-owned temporary Secret. | API key, matching in-session correlation ID, no Secret read. |
 | `k8s_create_job` | Create a one-time Job. | Image allowlist optional. |
 
 ---

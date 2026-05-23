@@ -35,6 +35,8 @@ http://k8s-inspector.bosgenesis.local/mcp
 | `k8s_update_resource` | Replace/update one supported manifest JSON object | Requires API key; namespace only; supports dry-run |
 | `k8s_create_pvc` | Create one PersistentVolumeClaim manifest | Requires API key; namespace only; supports dry-run |
 | `k8s_update_pvc` | Replace/update one PersistentVolumeClaim manifest | Requires API key; namespace only; supports dry-run |
+| `k8s_create_ephemeral_secret` | Create an MCP-owned temporary Secret without returning values | Requires API key; namespace only; name must start with `bosgenesis-mcp-`; supports dry-run |
+| `k8s_delete_ephemeral_secret` | Delete an MCP-owned temporary Secret from the current server session | Requires API key; namespace only; matching `correlation_id` required; supports dry-run |
 | `k8s_delete_resource` | Delete supported resource by name | Requires API key; namespace only; supports dry-run |
 | `k8s_delete_pvc` | Delete one PersistentVolumeClaim by name | Requires API key; namespace only; supports dry-run |
 | `k8s_delete_collection` | Delete a filtered collection of supported resources | Requires API key; namespace only; requires label or field selector; supports dry-run |
@@ -57,3 +59,14 @@ The default policy blocks:
 - `hostNetwork`, `hostPID`, `hostIPC`
 - `hostPath` volumes
 - service account override in user workloads
+
+## Narrow Secret Exception
+
+Secrets remain blocked for all generic read and mutation tools. The server exposes no Secret list/get/describe/update/patch tools.
+
+The only allowed Secret workflow is:
+
+- `k8s_create_ephemeral_secret`
+- `k8s_delete_ephemeral_secret`
+
+This workflow can create a temporary Secret named `bosgenesis-mcp-*`, label and annotate it as MCP-owned, return only the Secret name/key names/TTL/correlation ID, and later delete it during the same server session by matching `correlation_id`. Secret values are never returned in tool responses or audit summaries. Kubernetes does not auto-delete Secrets from the TTL annotation, so delete explicitly unless a separate cleanup controller is added.

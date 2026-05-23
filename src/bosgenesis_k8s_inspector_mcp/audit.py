@@ -41,6 +41,7 @@ def resource_kind_from_resource(resource: str) -> str:
         "pods": "Pod",
         "pods/log": "PodLog",
         "replicasets": "ReplicaSet",
+        "secrets": "Secret",
         "services": "Service",
         "statefulsets": "StatefulSet",
     }

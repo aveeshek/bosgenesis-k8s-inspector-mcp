@@ -13,7 +13,8 @@ Use the `bosgenesis_k8s` remote MCP server for Kubernetes inspection and mutatio
 - Prefer `bosgenesis_k8s` MCP tools over raw `kubectl`.
 - Never inspect or modify resources outside `bosgenesis`.
 - Never use cluster-admin access.
-- Never access Kubernetes secrets.
+- Never read, list, describe, patch, update, or generically apply Kubernetes Secrets.
+- The only Secret exception is the dedicated ephemeral Secret workflow: create/delete MCP-owned `bosgenesis-mcp-*` Secrets without reading or returning values.
 - Never use pod exec, attach, or port-forward through this skill.
 - Treat write operations as sensitive.
 - For write operations, use `dry_run=true` first whenever supported.
@@ -161,6 +162,24 @@ List ConfigMaps first to inspect names, labels, annotations, and key names. Use 
 5. Ask for confirmation.
 6. Use the PVC mutation tool with `dry_run=false` only after approval.
 
+### Ephemeral Secret Operations
+
+Use only:
+
+- `k8s_create_ephemeral_secret`
+- `k8s_delete_ephemeral_secret`
+
+Rules:
+
+- Never use generic manifest apply/create/update/patch/delete for Secrets.
+- Never read, list, describe, patch, or update Secrets.
+- Secret names must start with `bosgenesis-mcp-`.
+- Create with `dry_run=true` first.
+- Explain the Secret name, namespace, key names, TTL, expected consumer, and rollback/delete command.
+- Ask for confirmation before real creation or deletion.
+- Do not echo Secret values in chat, logs, docs, or audit summaries.
+- Use the returned `correlation_id` to delete the Secret during the same MCP server session.
+
 ## Tool Map
 
 Use these MCP tools:
@@ -183,6 +202,8 @@ Use these MCP tools:
 - `k8s_update_resource`
 - `k8s_create_pvc`
 - `k8s_update_pvc`
+- `k8s_create_ephemeral_secret`
+- `k8s_delete_ephemeral_secret`
 - `k8s_delete_resource`
 - `k8s_delete_pvc`
 - `k8s_delete_collection`

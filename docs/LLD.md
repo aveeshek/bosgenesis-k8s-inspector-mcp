@@ -58,6 +58,8 @@ Important routes:
 | `/apply` | POST | Server-side apply. |
 | `/create` | POST | Create supported resource. |
 | `/update` | POST | Replace supported resource. |
+| `/secrets/ephemeral` | POST | Create an MCP-owned temporary Secret without returning values. |
+| `/secrets/ephemeral/delete` | POST | Delete an MCP-owned temporary Secret with a matching in-session correlation ID. |
 | `/patch` | POST | Patch supported resource. |
 | `/delete` | POST | Delete supported resource. |
 | `/deletecollection` | POST | Delete selector-filtered collection. |
@@ -106,6 +108,8 @@ Write tools:
 - `k8s_apply_manifest`
 - `k8s_create_resource`
 - `k8s_update_resource`
+- `k8s_create_ephemeral_secret`
+- `k8s_delete_ephemeral_secret`
 - `k8s_delete_resource`
 - `k8s_delete_collection`
 - `k8s_patch_resource`
@@ -259,6 +263,25 @@ Read tools do not require `api_key`.
 
 Mutating tools require an `api_key` argument. The value is compared against `BOSGENESIS_API_KEY`.
 
+Ephemeral Secret tools are mutation tools. They require `api_key`, never return Secret values, and do not expose read/list/update/patch operations for Secrets.
+
+## Ephemeral Secret Design
+
+File: `src/bosgenesis_k8s_inspector_mcp/operations.py`
+
+The Secret workflow is intentionally separate from generic manifest mutation:
+
+1. `k8s_create_ephemeral_secret` validates namespace `bosgenesis`.
+2. It requires Secret names to start with `bosgenesis-mcp-`.
+3. It requires `string_data` or `data`.
+4. It adds MCP-owned labels plus `bosgenesis.io/correlation-id` and `bosgenesis.io/expires-at` annotations.
+5. It calls `create_namespaced_secret`.
+6. It stores only name, namespace, key names, expiry, and correlation ID in process memory until TTL expiry.
+7. It returns no Secret values.
+8. `k8s_delete_ephemeral_secret` deletes only when name and correlation ID match the current server session record.
+
+RBAC grants only `create` and `delete` on `secrets`. The service does not need `get`, `list`, `watch`, `update`, or `patch` on Secrets. Kubernetes does not natively expire Secrets from an annotation, so callers should explicitly delete temporary Secrets during the same session; a future cleanup controller can use the expiry annotation if automated cleanup is required.
+
 ## Audit Model
 
 Audit records include:
@@ -318,4 +341,6 @@ Current tests cover:
 - HTTP MCP mount and health metadata.
 - Kubernetes auth diagnostics and ServiceAccount header construction.
 - Deletecollection selector requirement.
+- ConfigMap read value redaction by default.
+- Ephemeral Secret value redaction and in-session delete ownership.
 - Policy rejection of Secrets, wrong namespaces, hostPath, and dangerous patches.

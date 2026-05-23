@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+from datetime import datetime, timedelta, timezone
 from typing import Any
+from uuid import uuid4
 
 import yaml
 from kubernetes import client
@@ -27,6 +29,14 @@ RESOURCE_DEFS: dict[str, tuple[str, str]] = {
     "cronjobs": ("batch/v1", "CronJob"),
     "ingresses": ("networking.k8s.io/v1", "Ingress"),
 }
+
+SECRET_NAME_PREFIX = "bosgenesis-mcp-"
+SECRET_OWNER_LABEL = "bosgenesis.io/secret-owner"
+SECRET_MANAGED_BY_LABEL = "app.kubernetes.io/managed-by"
+SECRET_CORRELATION_ANNOTATION = "bosgenesis.io/correlation-id"
+SECRET_EXPIRES_AT_ANNOTATION = "bosgenesis.io/expires-at"
+SECRET_MANAGED_BY = "bosgenesis-k8s-inspector-mcp"
+_owned_secret_sessions: dict[str, dict[str, Any]] = {}
 
 
 class KubernetesOperations:
@@ -716,6 +726,219 @@ class KubernetesOperations:
         patch = {"spec": {"replicas": replicas}}
         return self.patch_resource("deployments", name, namespace, patch, dry_run, actor, correlation_id, tool="k8s_scale_deployment")
 
+    def create_ephemeral_secret(
+        self,
+        name: str,
+        string_data: dict[str, str] | None = None,
+        data: dict[str, str] | None = None,
+        secret_type: str = "Opaque",
+        namespace: str | None = None,
+        ttl_seconds: int = 3600,
+        dry_run: bool = False,
+        actor: str = "codex",
+        correlation_id: str | None = None,
+        tool: str = "k8s_create_ephemeral_secret",
+    ) -> OperationResponse:
+        self._prune_expired_secret_sessions()
+        namespace = policy.assert_namespace(namespace or self.namespace)
+        secret_name = self._assert_ephemeral_secret_name(name)
+        if not string_data and not data:
+            raise PolicyDeniedError("Ephemeral Secret creation requires string_data or data.")
+        if ttl_seconds < 60 or ttl_seconds > 86400:
+            raise PolicyDeniedError("Ephemeral Secret ttl_seconds must be between 60 and 86400.")
+
+        correlation_id = correlation_id or str(uuid4())
+        expires_at = datetime.now(timezone.utc) + timedelta(seconds=ttl_seconds)
+        key_names = sorted(set((string_data or {}).keys()) | set((data or {}).keys()))
+        metadata = client.V1ObjectMeta(
+            name=secret_name,
+            namespace=namespace,
+            labels={
+                SECRET_MANAGED_BY_LABEL: SECRET_MANAGED_BY,
+                SECRET_OWNER_LABEL: "mcp-session",
+            },
+            annotations={
+                SECRET_CORRELATION_ANNOTATION: correlation_id,
+                SECRET_EXPIRES_AT_ANNOTATION: expires_at.isoformat(),
+            },
+        )
+        body = client.V1Secret(
+            metadata=metadata,
+            type=secret_type,
+            string_data=string_data or None,
+            data=data or None,
+        )
+        audit_start = audit_logger.emit(
+            action="create",
+            resource="secrets",
+            namespace=namespace,
+            name=secret_name,
+            status="started",
+            actor=actor,
+            request={
+                "kind": "Secret",
+                "dry_run": dry_run,
+                "key_names": key_names,
+                "ttl_seconds": ttl_seconds,
+            },
+            correlation_id=correlation_id,
+            tool=tool,
+            resource_kind="Secret",
+            dry_run=dry_run,
+            decision="allowed",
+        )
+        try:
+            kwargs: dict[str, Any] = {"namespace": namespace, "body": body}
+            if dry_run:
+                kwargs["dry_run"] = "All"
+            core_v1().create_namespaced_secret(**kwargs)
+            if not dry_run:
+                _owned_secret_sessions[correlation_id] = {
+                    "name": secret_name,
+                    "namespace": namespace,
+                    "expires_at": expires_at,
+                    "key_names": key_names,
+                }
+            summary = {
+                "kind": "Secret",
+                "name": secret_name,
+                "key_names": key_names,
+                "ttl_seconds": ttl_seconds,
+                "expires_at": expires_at.isoformat(),
+                "correlation_id": correlation_id,
+                "values_returned": False,
+            }
+            audit_logger.emit(
+                action="create",
+                resource="secrets",
+                namespace=namespace,
+                name=secret_name,
+                status="success",
+                actor=actor,
+                response_summary=summary,
+                correlation_id=audit_start["correlation_id"],
+                tool=tool,
+                resource_kind="Secret",
+                dry_run=dry_run,
+                decision="allowed",
+            )
+            return OperationResponse(
+                status="success",
+                namespace=namespace,
+                resource="secrets",
+                name=secret_name,
+                dry_run=dry_run,
+                summary=summary,
+                audit_id=audit_start["audit_id"],
+            )
+        except ApiException as exc:
+            audit_logger.emit(
+                action="create",
+                resource="secrets",
+                namespace=namespace,
+                name=secret_name,
+                status="failed",
+                actor=actor,
+                error=str(exc),
+                correlation_id=audit_start["correlation_id"],
+                tool=tool,
+                resource_kind="Secret",
+                dry_run=dry_run,
+                decision="allowed",
+                reason=str(exc),
+            )
+            raise KubernetesOperationError(str(exc)) from exc
+
+    def delete_ephemeral_secret(
+        self,
+        name: str,
+        correlation_id: str,
+        namespace: str | None = None,
+        dry_run: bool = False,
+        actor: str = "codex",
+        tool: str = "k8s_delete_ephemeral_secret",
+    ) -> OperationResponse:
+        self._prune_expired_secret_sessions()
+        namespace = policy.assert_namespace(namespace or self.namespace)
+        secret_name = self._assert_ephemeral_secret_name(name)
+        record = _owned_secret_sessions.get(correlation_id)
+        if not record or record.get("name") != secret_name or record.get("namespace") != namespace:
+            raise PolicyDeniedError(
+                "Ephemeral Secret deletion requires the matching in-session correlation_id."
+            )
+
+        audit_start = audit_logger.emit(
+            action="delete",
+            resource="secrets",
+            namespace=namespace,
+            name=secret_name,
+            status="started",
+            actor=actor,
+            request={"dry_run": dry_run},
+            correlation_id=correlation_id,
+            tool=tool,
+            resource_kind="Secret",
+            dry_run=dry_run,
+            decision="allowed",
+        )
+        try:
+            kwargs: dict[str, Any] = {
+                "name": secret_name,
+                "namespace": namespace,
+                "body": client.V1DeleteOptions(),
+            }
+            if dry_run:
+                kwargs["dry_run"] = "All"
+            core_v1().delete_namespaced_secret(**kwargs)
+            if not dry_run:
+                _owned_secret_sessions.pop(correlation_id, None)
+            summary = {
+                "kind": "Secret",
+                "name": secret_name,
+                "correlation_id": correlation_id,
+                "values_returned": False,
+            }
+            audit_logger.emit(
+                action="delete",
+                resource="secrets",
+                namespace=namespace,
+                name=secret_name,
+                status="success",
+                actor=actor,
+                response_summary=summary,
+                correlation_id=audit_start["correlation_id"],
+                tool=tool,
+                resource_kind="Secret",
+                dry_run=dry_run,
+                decision="allowed",
+            )
+            return OperationResponse(
+                status="success",
+                namespace=namespace,
+                resource="secrets",
+                name=secret_name,
+                dry_run=dry_run,
+                summary=summary,
+                audit_id=audit_start["audit_id"],
+            )
+        except ApiException as exc:
+            audit_logger.emit(
+                action="delete",
+                resource="secrets",
+                namespace=namespace,
+                name=secret_name,
+                status="failed",
+                actor=actor,
+                error=str(exc),
+                correlation_id=audit_start["correlation_id"],
+                tool=tool,
+                resource_kind="Secret",
+                dry_run=dry_run,
+                decision="allowed",
+                reason=str(exc),
+            )
+            raise KubernetesOperationError(str(exc)) from exc
+
     def create_pvc(
         self,
         manifest: dict[str, Any],
@@ -831,6 +1054,25 @@ class KubernetesOperations:
     def _assert_pvc_manifest(manifest: dict[str, Any]) -> None:
         if manifest.get("kind") != "PersistentVolumeClaim":
             raise PolicyDeniedError("PVC-specific operations require kind 'PersistentVolumeClaim'.")
+
+    @staticmethod
+    def _assert_ephemeral_secret_name(name: str) -> str:
+        if not name or not name.startswith(SECRET_NAME_PREFIX):
+            raise PolicyDeniedError(
+                f"Ephemeral Secret names must start with '{SECRET_NAME_PREFIX}'."
+            )
+        return name
+
+    @staticmethod
+    def _prune_expired_secret_sessions() -> None:
+        now = datetime.now(timezone.utc)
+        expired = [
+            correlation_id
+            for correlation_id, record in _owned_secret_sessions.items()
+            if record.get("expires_at") and record["expires_at"] <= now
+        ]
+        for correlation_id in expired:
+            _owned_secret_sessions.pop(correlation_id, None)
 
     @staticmethod
     def _pod_summary(pod: Any) -> dict[str, Any]:

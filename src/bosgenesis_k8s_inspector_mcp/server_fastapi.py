@@ -15,6 +15,8 @@ from .models import (
     BindPodRequest,
     DeleteCollectionRequest,
     DeleteResourceRequest,
+    EphemeralSecretCreateRequest,
+    EphemeralSecretDeleteRequest,
     ManifestMutationRequest,
     PatchResourceRequest,
     PvcDeleteCollectionRequest,
@@ -260,6 +262,38 @@ def update_pvc(pvc_name: str, req: ManifestMutationRequest) -> dict:
             dry_run=req.dry_run,
             actor=req.actor,
             correlation_id=req.correlation_id,
+        ).model_dump()
+    except Exception as exc:
+        raise handle_error(exc)
+
+
+@app.post("/secrets/ephemeral", dependencies=[Depends(require_mutation_api_key)])
+def create_ephemeral_secret(req: EphemeralSecretCreateRequest) -> dict:
+    try:
+        return ops.create_ephemeral_secret(
+            name=req.name,
+            string_data=req.string_data,
+            data=req.data,
+            secret_type=req.secret_type,
+            namespace=req.namespace,
+            ttl_seconds=req.ttl_seconds,
+            dry_run=req.dry_run,
+            actor=req.actor,
+            correlation_id=req.correlation_id,
+        ).model_dump()
+    except Exception as exc:
+        raise handle_error(exc)
+
+
+@app.post("/secrets/ephemeral/delete", dependencies=[Depends(require_mutation_api_key)])
+def delete_ephemeral_secret(req: EphemeralSecretDeleteRequest) -> dict:
+    try:
+        return ops.delete_ephemeral_secret(
+            name=req.name,
+            correlation_id=req.correlation_id,
+            namespace=req.namespace,
+            dry_run=req.dry_run,
+            actor=req.actor,
         ).model_dump()
     except Exception as exc:
         raise handle_error(exc)

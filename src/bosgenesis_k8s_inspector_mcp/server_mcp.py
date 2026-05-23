@@ -187,6 +187,54 @@ def k8s_update_pvc(
 
 
 @mcp.tool()
+def k8s_create_ephemeral_secret(
+    name: str,
+    string_data_json: str = "{}",
+    data_json: str = "{}",
+    secret_type: str = "Opaque",
+    ttl_seconds: int = 3600,
+    dry_run: bool = False,
+    actor: str = "codex",
+    correlation_id: str | None = None,
+    api_key: str | None = None,
+) -> dict[str, Any]:
+    """Create a write-only, MCP-owned temporary Secret in the allowed namespace.
+
+    Secret values are never returned. The name must start with
+    bosgenesis-mcp-. Use the returned correlation_id for in-session deletion.
+    """
+    require_mutation_api_key(api_key)
+    return ops.create_ephemeral_secret(
+        name=name,
+        string_data=json.loads(string_data_json),
+        data=json.loads(data_json),
+        secret_type=secret_type,
+        ttl_seconds=ttl_seconds,
+        dry_run=dry_run,
+        actor=actor,
+        correlation_id=correlation_id,
+    ).model_dump()
+
+
+@mcp.tool()
+def k8s_delete_ephemeral_secret(
+    name: str,
+    correlation_id: str,
+    dry_run: bool = False,
+    actor: str = "codex",
+    api_key: str | None = None,
+) -> dict[str, Any]:
+    """Delete an MCP-owned temporary Secret from the current server session."""
+    require_mutation_api_key(api_key)
+    return ops.delete_ephemeral_secret(
+        name=name,
+        correlation_id=correlation_id,
+        dry_run=dry_run,
+        actor=actor,
+    ).model_dump()
+
+
+@mcp.tool()
 def k8s_delete_resource(
     resource: str,
     name: str,

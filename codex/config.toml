@@ -24,6 +24,8 @@ enabled_tools = [
   "k8s_update_resource",
   "k8s_create_pvc",
   "k8s_update_pvc",
+  "k8s_create_ephemeral_secret",
+  "k8s_delete_ephemeral_secret",
   "k8s_delete_resource",
   "k8s_delete_pvc",
   "k8s_delete_collection",
@@ -47,6 +49,12 @@ approval_mode = "prompt"
 approval_mode = "prompt"
 
 [mcp_servers.bosgenesis_k8s.tools.k8s_update_pvc]
+approval_mode = "prompt"
+
+[mcp_servers.bosgenesis_k8s.tools.k8s_create_ephemeral_secret]
+approval_mode = "prompt"
+
+[mcp_servers.bosgenesis_k8s.tools.k8s_delete_ephemeral_secret]
 approval_mode = "prompt"
 
 [mcp_servers.bosgenesis_k8s.tools.k8s_delete_resource]
