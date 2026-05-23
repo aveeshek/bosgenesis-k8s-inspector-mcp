@@ -61,6 +61,18 @@ def k8s_list_services(actor: str = "codex") -> list[dict[str, Any]]:
 
 
 @mcp.tool()
+def k8s_list_pvcs(actor: str = "codex") -> list[dict[str, Any]]:
+    """List PersistentVolumeClaims in the allowed namespace only."""
+    return ops.list_pvcs(actor=actor)
+
+
+@mcp.tool()
+def k8s_describe_pvc(pvc_name: str, actor: str = "codex") -> dict[str, Any]:
+    """Describe one PersistentVolumeClaim in the allowed namespace only."""
+    return ops.describe_pvc(pvc_name, actor=actor)
+
+
+@mcp.tool()
 def k8s_list_deployments(actor: str = "codex") -> list[dict[str, Any]]:
     """List deployments in the allowed namespace only."""
     return ops.list_deployments(actor=actor)
@@ -129,6 +141,32 @@ def k8s_update_resource(
 
 
 @mcp.tool()
+def k8s_create_pvc(
+    manifest_json: str,
+    dry_run: bool = False,
+    actor: str = "codex",
+    api_key: str | None = None,
+) -> dict[str, Any]:
+    """Create one PersistentVolumeClaim in the allowed namespace only."""
+    require_mutation_api_key(api_key)
+    manifest = json.loads(manifest_json)
+    return ops.create_pvc(manifest=manifest, dry_run=dry_run, actor=actor).model_dump()
+
+
+@mcp.tool()
+def k8s_update_pvc(
+    manifest_json: str,
+    dry_run: bool = False,
+    actor: str = "codex",
+    api_key: str | None = None,
+) -> dict[str, Any]:
+    """Replace/update one PersistentVolumeClaim in the allowed namespace only."""
+    require_mutation_api_key(api_key)
+    manifest = json.loads(manifest_json)
+    return ops.update_pvc(manifest=manifest, dry_run=dry_run, actor=actor).model_dump()
+
+
+@mcp.tool()
 def k8s_delete_resource(
     resource: str,
     name: str,
@@ -142,6 +180,22 @@ def k8s_delete_resource(
         resource=resource,
         name=name,
         namespace=config.namespace,
+        dry_run=dry_run,
+        actor=actor,
+    ).model_dump()
+
+
+@mcp.tool()
+def k8s_delete_pvc(
+    pvc_name: str,
+    dry_run: bool = False,
+    actor: str = "codex",
+    api_key: str | None = None,
+) -> dict[str, Any]:
+    """Delete one PersistentVolumeClaim in the allowed namespace only."""
+    require_mutation_api_key(api_key)
+    return ops.delete_pvc(
+        name=pvc_name,
         dry_run=dry_run,
         actor=actor,
     ).model_dump()
@@ -169,6 +223,24 @@ def k8s_delete_collection(
 
 
 @mcp.tool()
+def k8s_delete_pvc_collection(
+    label_selector: str | None = None,
+    field_selector: str | None = None,
+    dry_run: bool = False,
+    actor: str = "codex",
+    api_key: str | None = None,
+) -> dict[str, Any]:
+    """Delete filtered PersistentVolumeClaims in the allowed namespace only."""
+    require_mutation_api_key(api_key)
+    return ops.delete_pvc_collection(
+        label_selector=label_selector,
+        field_selector=field_selector,
+        dry_run=dry_run,
+        actor=actor,
+    ).model_dump()
+
+
+@mcp.tool()
 def k8s_patch_resource(
     resource: str,
     name: str,
@@ -184,6 +256,25 @@ def k8s_patch_resource(
         resource=resource,
         name=name,
         namespace=config.namespace,
+        patch=patch,
+        dry_run=dry_run,
+        actor=actor,
+    ).model_dump()
+
+
+@mcp.tool()
+def k8s_patch_pvc(
+    pvc_name: str,
+    patch_json: str,
+    dry_run: bool = False,
+    actor: str = "codex",
+    api_key: str | None = None,
+) -> dict[str, Any]:
+    """Patch one PersistentVolumeClaim in the allowed namespace only."""
+    require_mutation_api_key(api_key)
+    patch = json.loads(patch_json)
+    return ops.patch_pvc(
+        name=pvc_name,
         patch=patch,
         dry_run=dry_run,
         actor=actor,

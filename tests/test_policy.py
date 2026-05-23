@@ -49,6 +49,22 @@ def test_allow_configmap_manifest():
     assert (kind, resource, name) == ("ConfigMap", "configmaps", "ok")
 
 
+def test_allow_pvc_manifest():
+    manifest = {
+        "apiVersion": "v1",
+        "kind": "PersistentVolumeClaim",
+        "metadata": {"name": "data-ok", "namespace": "bosgenesis"},
+        "spec": {
+            "accessModes": ["ReadWriteOnce"],
+            "resources": {"requests": {"storage": "1Gi"}},
+        },
+    }
+
+    kind, resource, name = policy.validate_manifest(manifest)
+
+    assert (kind, resource, name) == ("PersistentVolumeClaim", "persistentvolumeclaims", "data-ok")
+
+
 def test_reject_privileged_patch_payload():
     patch = {
         "spec": {

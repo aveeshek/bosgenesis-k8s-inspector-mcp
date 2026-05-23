@@ -40,6 +40,7 @@ class KubernetesOperations:
             services = self.list_services(actor=actor)
             deployments = self.list_deployments(actor=actor)
             ingresses = self.list_ingresses(actor=actor)
+            pvcs = self.list_pvcs(actor=actor)
             summary = {
                 "namespace": namespace,
                 "counts": {
@@ -47,6 +48,7 @@ class KubernetesOperations:
                     "services": len(services),
                     "deployments": len(deployments),
                     "ingresses": len(ingresses),
+                    "persistentvolumeclaims": len(pvcs),
                 },
                 "pods_by_phase": {},
             }
@@ -138,6 +140,49 @@ class KubernetesOperations:
         ]
         audit_logger.emit(action="list", resource="services", namespace=self.namespace, status="success", actor=actor, tool="k8s_list_services", response_summary={"count": len(result)})
         return result
+
+    def list_pvcs(self, actor: str = "codex") -> list[dict[str, Any]]:
+        policy.assert_namespace(self.namespace)
+        policy.assert_resource_allowed("persistentvolumeclaims", "list")
+        items = core_v1().list_namespaced_persistent_volume_claim(namespace=self.namespace).items
+        result = [self._pvc_summary(pvc) for pvc in items]
+        audit_logger.emit(
+            action="list",
+            resource="persistentvolumeclaims",
+            namespace=self.namespace,
+            status="success",
+            actor=actor,
+            tool="k8s_list_pvcs",
+            response_summary={"count": len(result)},
+        )
+        return result
+
+    def describe_pvc(self, name: str, actor: str = "codex") -> dict[str, Any]:
+        policy.assert_namespace(self.namespace)
+        policy.assert_resource_allowed("persistentvolumeclaims", "get")
+        with audit_logger.span(
+            "k8s.describe_pvc",
+            {"k8s.namespace": self.namespace, "k8s.pvc": name},
+        ):
+            pvc = core_v1().read_namespaced_persistent_volume_claim(
+                name=name,
+                namespace=self.namespace,
+            )
+            result = api_client().sanitize_for_serialization(pvc)
+            audit_logger.emit(
+                action="get",
+                resource="persistentvolumeclaims",
+                namespace=self.namespace,
+                name=name,
+                status="success",
+                actor=actor,
+                tool="k8s_describe_pvc",
+                response_summary={
+                    "phase": getattr(pvc.status, "phase", None),
+                    "volume_name": getattr(pvc.spec, "volume_name", None),
+                },
+            )
+            return result
 
     def list_deployments(self, actor: str = "codex") -> list[dict[str, Any]]:
         policy.assert_namespace(self.namespace)
@@ -622,6 +667,93 @@ class KubernetesOperations:
         patch = {"spec": {"replicas": replicas}}
         return self.patch_resource("deployments", name, namespace, patch, dry_run, actor, correlation_id, tool="k8s_scale_deployment")
 
+    def create_pvc(
+        self,
+        manifest: dict[str, Any],
+        dry_run: bool = False,
+        actor: str = "codex",
+        correlation_id: str | None = None,
+    ) -> OperationResponse:
+        self._assert_pvc_manifest(manifest)
+        return self.create_manifest(
+            manifest=manifest,
+            dry_run=dry_run,
+            actor=actor,
+            correlation_id=correlation_id,
+            tool="k8s_create_pvc",
+        )
+
+    def update_pvc(
+        self,
+        manifest: dict[str, Any],
+        dry_run: bool = False,
+        actor: str = "codex",
+        correlation_id: str | None = None,
+    ) -> OperationResponse:
+        self._assert_pvc_manifest(manifest)
+        return self.update_manifest(
+            manifest=manifest,
+            dry_run=dry_run,
+            actor=actor,
+            correlation_id=correlation_id,
+            tool="k8s_update_pvc",
+        )
+
+    def patch_pvc(
+        self,
+        name: str,
+        patch: dict[str, Any],
+        dry_run: bool = False,
+        actor: str = "codex",
+        correlation_id: str | None = None,
+    ) -> OperationResponse:
+        return self.patch_resource(
+            resource="persistentvolumeclaims",
+            name=name,
+            namespace=self.namespace,
+            patch=patch,
+            dry_run=dry_run,
+            actor=actor,
+            correlation_id=correlation_id,
+            tool="k8s_patch_pvc",
+        )
+
+    def delete_pvc(
+        self,
+        name: str,
+        dry_run: bool = False,
+        actor: str = "codex",
+        correlation_id: str | None = None,
+    ) -> OperationResponse:
+        return self.delete_resource(
+            resource="persistentvolumeclaims",
+            name=name,
+            namespace=self.namespace,
+            dry_run=dry_run,
+            actor=actor,
+            correlation_id=correlation_id,
+            tool="k8s_delete_pvc",
+        )
+
+    def delete_pvc_collection(
+        self,
+        label_selector: str | None = None,
+        field_selector: str | None = None,
+        dry_run: bool = False,
+        actor: str = "codex",
+        correlation_id: str | None = None,
+    ) -> OperationResponse:
+        return self.delete_collection(
+            resource="persistentvolumeclaims",
+            namespace=self.namespace,
+            label_selector=label_selector,
+            field_selector=field_selector,
+            dry_run=dry_run,
+            actor=actor,
+            correlation_id=correlation_id,
+            tool="k8s_delete_pvc_collection",
+        )
+
     def apply_yaml_text(self, yaml_text: str, dry_run: bool = False, actor: str = "codex") -> list[dict[str, Any]]:
         docs = [doc for doc in yaml.safe_load_all(yaml_text) if doc]
         return [self.apply_manifest(doc, dry_run=dry_run, actor=actor).model_dump() for doc in docs]
@@ -647,6 +779,11 @@ class KubernetesOperations:
             spec.setdefault("automountServiceAccountToken", False)
 
     @staticmethod
+    def _assert_pvc_manifest(manifest: dict[str, Any]) -> None:
+        if manifest.get("kind") != "PersistentVolumeClaim":
+            raise PolicyDeniedError("PVC-specific operations require kind 'PersistentVolumeClaim'.")
+
+    @staticmethod
     def _pod_summary(pod: Any) -> dict[str, Any]:
         ready = 0
         total = len(pod.status.container_statuses or [])
@@ -665,6 +802,27 @@ class KubernetesOperations:
             "pod_ip": pod.status.pod_ip,
             "start_time": str(pod.status.start_time) if pod.status.start_time else None,
             "images": [c.image for c in pod.spec.containers or []],
+        }
+
+    @staticmethod
+    def _pvc_summary(pvc: Any) -> dict[str, Any]:
+        requested = None
+        capacity = None
+        if pvc.spec and pvc.spec.resources and pvc.spec.resources.requests:
+            requested = pvc.spec.resources.requests.get("storage")
+        if pvc.status and pvc.status.capacity:
+            capacity = pvc.status.capacity.get("storage")
+        return {
+            "name": pvc.metadata.name,
+            "namespace": pvc.metadata.namespace,
+            "phase": pvc.status.phase if pvc.status else None,
+            "storage_class": pvc.spec.storage_class_name if pvc.spec else None,
+            "volume_name": pvc.spec.volume_name if pvc.spec else None,
+            "access_modes": pvc.spec.access_modes or [] if pvc.spec else [],
+            "requested_storage": requested,
+            "capacity": capacity,
+            "volume_mode": pvc.spec.volume_mode if pvc.spec else None,
+            "created_at": str(pvc.metadata.creation_timestamp) if pvc.metadata.creation_timestamp else None,
         }
 
 

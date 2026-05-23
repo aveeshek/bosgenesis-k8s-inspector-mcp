@@ -40,6 +40,8 @@ GET  /pods
 GET  /pods/{pod_name}
 GET  /pods/{pod_name}/logs
 GET  /services
+GET  /pvcs
+GET  /pvcs/{pvc_name}
 GET  /deployments
 GET  /statefulsets
 GET  /ingresses
@@ -47,9 +49,14 @@ GET  /events
 POST /apply
 POST /create
 POST /update
+POST /pvcs
+PUT  /pvcs/{pvc_name}
 POST /delete
+DELETE /pvcs/{pvc_name}
 POST /deletecollection
+POST /pvcs/deletecollection
 POST /patch
+PATCH /pvcs/{pvc_name}
 POST /bind
 POST /scale/deployment
 ```
@@ -72,6 +79,8 @@ k8s_list_pods
 k8s_describe_pod
 k8s_get_pod_logs
 k8s_list_services
+k8s_list_pvcs
+k8s_describe_pvc
 k8s_list_deployments
 k8s_list_statefulsets
 k8s_list_ingresses
@@ -79,9 +88,14 @@ k8s_list_events
 k8s_apply_manifest
 k8s_create_resource
 k8s_update_resource
+k8s_create_pvc
+k8s_update_pvc
 k8s_delete_resource
+k8s_delete_pvc
 k8s_delete_collection
+k8s_delete_pvc_collection
 k8s_patch_resource
+k8s_patch_pvc
 k8s_bind_pod
 k8s_scale_deployment
 ```

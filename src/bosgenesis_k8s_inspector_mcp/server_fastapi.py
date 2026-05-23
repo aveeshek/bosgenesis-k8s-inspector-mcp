@@ -17,6 +17,8 @@ from .models import (
     DeleteResourceRequest,
     ManifestMutationRequest,
     PatchResourceRequest,
+    PvcDeleteCollectionRequest,
+    PvcPatchRequest,
     ScaleDeploymentRequest,
 )
 from .operations import ops
@@ -128,6 +130,22 @@ def list_services(actor: str = Query(default="codex")) -> list[dict]:
         raise handle_error(exc)
 
 
+@app.get("/pvcs", dependencies=[Depends(require_api_key)])
+def list_pvcs(actor: str = Query(default="codex")) -> list[dict]:
+    try:
+        return ops.list_pvcs(actor=actor)
+    except Exception as exc:
+        raise handle_error(exc)
+
+
+@app.get("/pvcs/{pvc_name}", dependencies=[Depends(require_api_key)])
+def describe_pvc(pvc_name: str, actor: str = Query(default="codex")) -> dict:
+    try:
+        return ops.describe_pvc(pvc_name, actor=actor)
+    except Exception as exc:
+        raise handle_error(exc)
+
+
 @app.get("/deployments", dependencies=[Depends(require_api_key)])
 def list_deployments(actor: str = Query(default="codex")) -> list[dict]:
     try:
@@ -199,6 +217,34 @@ def update_resource(req: ManifestMutationRequest) -> dict:
         raise handle_error(exc)
 
 
+@app.post("/pvcs", dependencies=[Depends(require_mutation_api_key)])
+def create_pvc(req: ManifestMutationRequest) -> dict:
+    try:
+        return ops.create_pvc(
+            manifest=req.manifest,
+            dry_run=req.dry_run,
+            actor=req.actor,
+            correlation_id=req.correlation_id,
+        ).model_dump()
+    except Exception as exc:
+        raise handle_error(exc)
+
+
+@app.put("/pvcs/{pvc_name}", dependencies=[Depends(require_mutation_api_key)])
+def update_pvc(pvc_name: str, req: ManifestMutationRequest) -> dict:
+    try:
+        if req.manifest.get("metadata", {}).get("name") != pvc_name:
+            raise PolicyDeniedError("PVC manifest metadata.name must match the URL pvc_name.")
+        return ops.update_pvc(
+            manifest=req.manifest,
+            dry_run=req.dry_run,
+            actor=req.actor,
+            correlation_id=req.correlation_id,
+        ).model_dump()
+    except Exception as exc:
+        raise handle_error(exc)
+
+
 @app.post("/delete", dependencies=[Depends(require_mutation_api_key)])
 def delete_resource(req: DeleteResourceRequest) -> dict:
     try:
@@ -209,6 +255,22 @@ def delete_resource(req: DeleteResourceRequest) -> dict:
             dry_run=req.dry_run,
             actor=req.actor,
             correlation_id=req.correlation_id,
+        ).model_dump()
+    except Exception as exc:
+        raise handle_error(exc)
+
+
+@app.delete("/pvcs/{pvc_name}", dependencies=[Depends(require_mutation_api_key)])
+def delete_pvc(
+    pvc_name: str,
+    dry_run: bool = Query(default=False),
+    actor: str = Query(default="codex"),
+) -> dict:
+    try:
+        return ops.delete_pvc(
+            name=pvc_name,
+            dry_run=dry_run,
+            actor=actor,
         ).model_dump()
     except Exception as exc:
         raise handle_error(exc)
@@ -230,6 +292,20 @@ def delete_collection(req: DeleteCollectionRequest) -> dict:
         raise handle_error(exc)
 
 
+@app.post("/pvcs/deletecollection", dependencies=[Depends(require_mutation_api_key)])
+def delete_pvc_collection(req: PvcDeleteCollectionRequest) -> dict:
+    try:
+        return ops.delete_pvc_collection(
+            label_selector=req.label_selector,
+            field_selector=req.field_selector,
+            dry_run=req.dry_run,
+            actor=req.actor,
+            correlation_id=req.correlation_id,
+        ).model_dump()
+    except Exception as exc:
+        raise handle_error(exc)
+
+
 @app.post("/patch", dependencies=[Depends(require_mutation_api_key)])
 def patch_resource(req: PatchResourceRequest) -> dict:
     try:
@@ -237,6 +313,20 @@ def patch_resource(req: PatchResourceRequest) -> dict:
             resource=req.resource,
             name=req.name,
             namespace=req.namespace,
+            patch=req.patch,
+            dry_run=req.dry_run,
+            actor=req.actor,
+            correlation_id=req.correlation_id,
+        ).model_dump()
+    except Exception as exc:
+        raise handle_error(exc)
+
+
+@app.patch("/pvcs/{pvc_name}", dependencies=[Depends(require_mutation_api_key)])
+def patch_pvc(pvc_name: str, req: PvcPatchRequest) -> dict:
+    try:
+        return ops.patch_pvc(
+            name=pvc_name,
             patch=req.patch,
             dry_run=req.dry_run,
             actor=req.actor,

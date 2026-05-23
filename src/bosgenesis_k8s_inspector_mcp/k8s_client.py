@@ -30,8 +30,8 @@ def _load_direct_incluster_client() -> ApiClient:
 
     client_config = client.Configuration()
     client_config.host = f"https://{host}:{port}"
-    client_config.api_key = {"authorization": token}
-    client_config.api_key_prefix = {"authorization": "Bearer"}
+    client_config.api_key = {"authorization": token, "BearerToken": token}
+    client_config.api_key_prefix = {"authorization": "Bearer", "BearerToken": "Bearer"}
     if SERVICEACCOUNT_CA_PATH.exists():
         client_config.ssl_ca_cert = str(SERVICEACCOUNT_CA_PATH)
         client_config.verify_ssl = True

@@ -14,3 +14,10 @@ def test_health_reports_mcp_endpoint():
 
     assert response.status_code == 200
     assert response.json()["mcp_endpoint"] == "/mcp"
+
+
+def test_pvc_routes_exist():
+    paths = {route.path for route in app.routes}
+
+    assert "/pvcs" in paths
+    assert "/pvcs/{pvc_name}" in paths

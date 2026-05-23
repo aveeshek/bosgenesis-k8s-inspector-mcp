@@ -48,11 +48,26 @@ class DeleteCollectionRequest(BaseModel):
     correlation_id: str | None = None
 
 
+class PvcDeleteCollectionRequest(BaseModel):
+    label_selector: str | None = None
+    field_selector: str | None = None
+    dry_run: bool = False
+    actor: str = "codex"
+    correlation_id: str | None = None
+
+
 class PatchResourceRequest(BaseModel):
     resource: WritableResource
     name: str
     patch: dict[str, Any]
     namespace: str = Field(default="bosgenesis")
+    dry_run: bool = False
+    actor: str = "codex"
+    correlation_id: str | None = None
+
+
+class PvcPatchRequest(BaseModel):
+    patch: dict[str, Any]
     dry_run: bool = False
     actor: str = "codex"
     correlation_id: str | None = None

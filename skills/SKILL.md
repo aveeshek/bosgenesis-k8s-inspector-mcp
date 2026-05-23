@@ -1,6 +1,6 @@
 ---
 name: bosgenesis-k8s-operator
-description: Use this skill when inspecting, troubleshooting, or safely modifying Kubernetes resources through the BOS Genesis namespace-scoped Kubernetes MCP server. Trigger for BOS Genesis Kubernetes operations, pod diagnostics, namespace summaries, pod logs, events, service/deployment inspection, dry-run manifest application, creating, updating, patching, scaling, binding, or deleting resources through the bosgenesis_k8s MCP tools.
+description: Use this skill when inspecting, troubleshooting, or safely modifying Kubernetes resources through the BOS Genesis namespace-scoped Kubernetes MCP server. Trigger for BOS Genesis Kubernetes operations, pod diagnostics, namespace summaries, pod logs, events, service/deployment/PVC inspection, dry-run manifest application, creating, updating, patching, scaling, binding, or deleting resources through the bosgenesis_k8s MCP tools.
 ---
 
 # BOS Genesis Kubernetes Operator
@@ -30,6 +30,7 @@ Use:
 - `k8s_namespace_summary`
 - `k8s_list_pods`
 - `k8s_list_services`
+- `k8s_list_pvcs`
 - `k8s_list_deployments`
 - `k8s_list_statefulsets`
 - `k8s_list_ingresses`
@@ -59,6 +60,16 @@ Use:
 - `k8s_list_events`
 
 Compare desired replicas, ready replicas, images, pod status, and events.
+
+### Inspect Persistent Storage
+
+Use:
+
+- `k8s_list_pvcs`
+- `k8s_describe_pvc`
+- `k8s_list_events`
+
+Check phase, storage class, access modes, requested size, bound volume name, capacity, and recent events.
 
 ## Write Workflows
 
@@ -131,6 +142,15 @@ Compare desired replicas, ready replicas, images, pod status, and events.
 5. Ask for confirmation.
 6. Use `k8s_delete_collection` with `dry_run=false` only after approval.
 
+### PVC Operations
+
+1. Use `k8s_list_pvcs` and `k8s_describe_pvc` for read-only storage inspection.
+2. For create or update, validate the PVC manifest has `kind: PersistentVolumeClaim` and `metadata.namespace: bosgenesis`.
+3. Use `k8s_create_pvc`, `k8s_update_pvc`, `k8s_patch_pvc`, `k8s_delete_pvc`, or `k8s_delete_pvc_collection` with `dry_run=true` first.
+4. Explain storage impact, reclaim-policy risk, mounted workloads, and rollback limits before a real mutation.
+5. Ask for confirmation.
+6. Use the PVC mutation tool with `dry_run=false` only after approval.
+
 ## Tool Map
 
 Use these MCP tools:
@@ -140,6 +160,8 @@ Use these MCP tools:
 - `k8s_describe_pod`
 - `k8s_get_pod_logs`
 - `k8s_list_services`
+- `k8s_list_pvcs`
+- `k8s_describe_pvc`
 - `k8s_list_deployments`
 - `k8s_list_statefulsets`
 - `k8s_list_ingresses`
@@ -147,8 +169,13 @@ Use these MCP tools:
 - `k8s_apply_manifest`
 - `k8s_create_resource`
 - `k8s_update_resource`
+- `k8s_create_pvc`
+- `k8s_update_pvc`
 - `k8s_delete_resource`
+- `k8s_delete_pvc`
 - `k8s_delete_collection`
+- `k8s_delete_pvc_collection`
 - `k8s_patch_resource`
+- `k8s_patch_pvc`
 - `k8s_bind_pod`
 - `k8s_scale_deployment`
