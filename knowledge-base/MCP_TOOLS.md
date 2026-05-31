@@ -19,6 +19,7 @@ http://k8s-inspector.bosgenesis.local/mcp
 | `k8s_list_services` | List services |
 | `k8s_list_configmaps` | List ConfigMaps with metadata and key names only |
 | `k8s_get_configmap` | Read one ConfigMap; values are returned only when `include_data=true` |
+| `k8s_get_resource` | Read one allowed namespaced resource as full JSON for reconstruction evidence; Secrets and cluster-scoped kinds are denied |
 | `k8s_list_pvcs` | List PersistentVolumeClaims |
 | `k8s_describe_pvc` | Describe one PersistentVolumeClaim |
 | `k8s_list_deployments` | List deployments |
@@ -46,6 +47,83 @@ http://k8s-inspector.bosgenesis.local/mcp
 | `k8s_bind_pod` | Bind a pending pod to a named node | Requires API key; namespace only; does not read node resources; supports dry-run |
 | `k8s_scale_deployment` | Scale deployment replica count | Requires API key; namespace only; supports dry-run |
 
+## `k8s_get_resource`
+
+Purpose:
+
+```text
+Read one allowed namespaced Kubernetes resource as full JSON for reconstruction evidence.
+```
+
+Input:
+
+```json
+{
+  "namespace": "bosgenesis",
+  "kind": "Deployment",
+  "name": "example",
+  "actor": "codex",
+  "correlation_id": "optional-correlation-id"
+}
+```
+
+Allowed kinds:
+
+- `ConfigMap`
+- `Service`
+- `Deployment`
+- `StatefulSet`
+- `DaemonSet`
+- `Job`
+- `CronJob`
+- `PersistentVolumeClaim`
+- `Ingress`
+
+Success response:
+
+```json
+{
+  "status": "ok",
+  "namespace": "bosgenesis",
+  "kind": "Deployment",
+  "name": "example",
+  "resource": {
+    "apiVersion": "apps/v1",
+    "kind": "Deployment",
+    "metadata": {},
+    "spec": {},
+    "status": {}
+  }
+}
+```
+
+Not-found response:
+
+```json
+{
+  "status": "not_found",
+  "namespace": "bosgenesis",
+  "kind": "Deployment",
+  "name": "missing",
+  "error": "resource_not_found"
+}
+```
+
+MCP policy-denied response:
+
+```json
+{
+  "status": "denied",
+  "namespace": "bosgenesis",
+  "kind": "Secret",
+  "name": "blocked",
+  "error": "policy_denied",
+  "message": "Kind 'Secret' is blocked by policy."
+}
+```
+
+REST `/resource` uses the same operation layer and returns HTTP `403` for policy denials. The inspector does not strip runtime metadata from allowed resources; downstream consumers own manifest normalization.
+
 ## Blocked by policy
 
 The default policy blocks:
@@ -54,6 +132,7 @@ The default policy blocks:
 - `serviceaccounts`
 - RBAC objects such as `roles` and `rolebindings`
 - cluster-scoped resources such as `nodes`, `namespaces`, `persistentvolumes`, and `customresourcedefinitions`
+- storage and admission classes such as `storageclasses`, `ingressclasses`, `priorityclasses`, `mutatingwebhookconfigurations`, and `validatingwebhookconfigurations`
 - `pods/exec`, `pods/attach`, and `pods/portforward`
 - privileged containers
 - `hostNetwork`, `hostPID`, `hostIPC`

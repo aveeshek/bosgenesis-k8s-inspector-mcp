@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any, Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 WritableResource = Literal[
     "pods",
@@ -15,6 +15,18 @@ WritableResource = Literal[
     "jobs",
     "cronjobs",
     "ingresses",
+]
+
+DetailResourceKind = Literal[
+    "ConfigMap",
+    "Service",
+    "Deployment",
+    "StatefulSet",
+    "DaemonSet",
+    "Job",
+    "CronJob",
+    "PersistentVolumeClaim",
+    "Ingress",
 ]
 
 
@@ -69,6 +81,16 @@ class PatchResourceRequest(BaseModel):
 class PvcPatchRequest(BaseModel):
     patch: dict[str, Any]
     dry_run: bool = False
+    actor: str = "codex"
+    correlation_id: str | None = None
+
+
+class GetResourceRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    namespace: str = Field(min_length=1)
+    kind: DetailResourceKind
+    name: str = Field(min_length=1)
     actor: str = "codex"
     correlation_id: str | None = None
 

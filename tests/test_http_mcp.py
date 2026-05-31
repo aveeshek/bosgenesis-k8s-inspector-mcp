@@ -21,3 +21,30 @@ def test_pvc_routes_exist():
 
     assert "/pvcs" in paths
     assert "/pvcs/{pvc_name}" in paths
+
+
+def test_resource_detail_route_exists():
+    paths = {route.path for route in app.routes}
+
+    assert "/resource" in paths
+
+
+def test_resource_detail_openapi_schema_is_strict():
+    from fastapi.testclient import TestClient
+
+    schema = TestClient(app).get("/openapi.json").json()
+    request_schema = schema["components"]["schemas"]["GetResourceRequest"]
+
+    assert request_schema["additionalProperties"] is False
+    assert set(request_schema["required"]) == {"namespace", "kind", "name"}
+    assert request_schema["properties"]["kind"]["enum"] == [
+        "ConfigMap",
+        "Service",
+        "Deployment",
+        "StatefulSet",
+        "DaemonSet",
+        "Job",
+        "CronJob",
+        "PersistentVolumeClaim",
+        "Ingress",
+    ]

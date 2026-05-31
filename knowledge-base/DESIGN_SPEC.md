@@ -25,13 +25,14 @@ The service provides a controlled remote MCP surface that runs inside Kubernetes
 | FR-2 | Expose REST health and operational endpoints. |
 | FR-3 | List pods, services, ConfigMaps, PersistentVolumeClaims, deployments, statefulsets, ingresses, and events in `bosgenesis`. |
 | FR-4 | Describe pods and fetch bounded pod logs. |
-| FR-5 | Apply, create, update, patch, delete, deletecollection, bind, and scale supported resources. |
-| FR-6 | Support dry-run on mutating Kubernetes operations where Kubernetes supports it. |
-| FR-7 | Reject all operations outside the configured namespace. |
-| FR-8 | Reject blocked resources and unsafe pod specs. |
-| FR-9 | Emit audit records for all tool/API operations. |
-| FR-10 | Emit OpenTelemetry spans when enabled. |
-| FR-11 | Create and delete MCP-owned temporary Secrets without exposing Secret values. |
+| FR-5 | Read full JSON for one selected namespaced resource through `k8s_get_resource` / `/resource`. |
+| FR-6 | Apply, create, update, patch, delete, deletecollection, bind, and scale supported resources. |
+| FR-7 | Support dry-run on mutating Kubernetes operations where Kubernetes supports it. |
+| FR-8 | Reject all operations outside the configured namespace. |
+| FR-9 | Reject blocked resources and unsafe pod specs. |
+| FR-10 | Emit audit records for all tool/API operations. |
+| FR-11 | Emit OpenTelemetry spans when enabled. |
+| FR-12 | Create and delete MCP-owned temporary Secrets without exposing Secret values. |
 
 ## Non-Functional Requirements
 
@@ -46,6 +47,8 @@ The service provides a controlled remote MCP surface that runs inside Kubernetes
 | NFR-7 | The service must not create or modify RBAC resources. |
 | NFR-8 | The service must keep responses structured for agent summarization. |
 | NFR-9 | Ephemeral Secret operations must never return Secret values in responses or audit summaries. |
+| NFR-10 | Resource detail reads must not strip Kubernetes runtime metadata; downstream consumers own normalization. |
+| NFR-11 | MCP policy denials for `k8s_get_resource` must return a clear structured denial payload instead of a generic tool exception. |
 
 ## External Interfaces
 
@@ -76,6 +79,7 @@ MCP clients must:
 | `/services` | GET | Yes when configured | List services. |
 | `/configmaps` | GET | Yes when configured | List ConfigMaps with metadata and key names only. |
 | `/configmaps/{configmap_name}` | GET | Yes when configured | Read one ConfigMap; values require `include_data=true`. |
+| `/resource` | POST | Yes when configured | Read one allowed namespaced resource as full JSON. |
 | `/pvcs` | GET | Yes when configured | List PersistentVolumeClaims. |
 | `/pvcs/{pvc_name}` | GET | Yes when configured | Describe PersistentVolumeClaim. |
 | `/deployments` | GET | Yes when configured | List deployments. |
@@ -109,6 +113,80 @@ MCP clients must:
 ```
 
 By default, ConfigMap reads return metadata and key names only. Set `include_data=true` only when values are explicitly needed. Kubernetes Secrets are never exposed through the MCP or REST surfaces.
+
+### Resource Detail Tool Example
+
+```json
+{
+  "name": "k8s_get_resource",
+  "arguments": {
+    "namespace": "bosgenesis",
+    "kind": "Deployment",
+    "name": "example",
+    "actor": "codex",
+    "correlation_id": "optional-correlation-id"
+  }
+}
+```
+
+Allowed kinds:
+
+```text
+ConfigMap
+Service
+Deployment
+StatefulSet
+DaemonSet
+Job
+CronJob
+PersistentVolumeClaim
+Ingress
+```
+
+Successful response:
+
+```json
+{
+  "status": "ok",
+  "namespace": "bosgenesis",
+  "kind": "Deployment",
+  "name": "example",
+  "resource": {
+    "apiVersion": "apps/v1",
+    "kind": "Deployment",
+    "metadata": {},
+    "spec": {},
+    "status": {}
+  }
+}
+```
+
+Not found response:
+
+```json
+{
+  "status": "not_found",
+  "namespace": "bosgenesis",
+  "kind": "Deployment",
+  "name": "missing",
+  "error": "resource_not_found"
+}
+```
+
+MCP policy-denied response:
+
+```json
+{
+  "status": "denied",
+  "namespace": "bosgenesis",
+  "kind": "Secret",
+  "name": "blocked",
+  "error": "policy_denied",
+  "message": "Kind 'Secret' is blocked by policy."
+}
+```
+
+REST policy denials for `/resource` are surfaced as HTTP `403`.
 
 ### Mutation Tool Example
 
@@ -214,6 +292,11 @@ Always blocked:
 - `namespaces`
 - `persistentvolumes`
 - `customresourcedefinitions`
+- `storageclasses`
+- `ingressclasses`
+- `priorityclasses`
+- `mutatingwebhookconfigurations`
+- `validatingwebhookconfigurations`
 
 ### Blocked Subresources
 
@@ -243,6 +326,19 @@ Secrets stay blocked for generic manifest operations and all read paths. A dedic
 - mutation API key required
 - values are never returned
 - deletion requires matching in-session correlation ID
+
+### Resource Detail Read Policy
+
+`k8s_get_resource` is read-only and validates before any Kubernetes API call:
+
+- namespace must equal `bosgenesis`
+- name must be present and non-empty
+- kind must be in the allowed detail kind list
+- blocked and cluster-scoped kinds are denied
+- Secrets are denied
+- no pod exec, attach, port-forward, or shell behavior is involved
+
+The inspector returns the full Kubernetes object for allowed kinds. It does not redact or mutate allowed resource objects.
 
 ## RBAC Specification
 
@@ -324,6 +420,10 @@ automountServiceAccountToken: true
 | AC-12 | MCP `k8s_get_configmap` returns ConfigMap values only when `include_data=true`. |
 | AC-13 | MCP `k8s_create_ephemeral_secret` never returns Secret values. |
 | AC-14 | MCP `k8s_delete_ephemeral_secret` requires a matching in-session correlation ID. |
+| AC-15 | MCP `k8s_get_resource` returns full JSON for allowed Deployment, Service, ConfigMap, and PVC resources. |
+| AC-16 | MCP `k8s_get_resource` returns `status=not_found` for missing allowed resources. |
+| AC-17 | MCP `k8s_get_resource` returns structured `status=denied` for blocked kinds and wrong namespaces. |
+| AC-18 | OpenAPI exposes `/resource` with a strict request schema requiring `namespace`, `kind`, and `name`. |
 
 ## Manual Verification
 
@@ -362,6 +462,18 @@ curl -i -N \
   -d '{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"k8s_list_pods","arguments":{"actor":"manual-curl"}}}'
 ```
 
+Call resource detail:
+
+```bash
+curl -i -N \
+  -X POST \
+  -H "Content-Type: application/json" \
+  -H "Accept: application/json, text/event-stream" \
+  -H "mcp-session-id: ${MCP_SESSION_ID}" \
+  http://k8s-inspector.bosgenesis.local/mcp \
+  -d '{"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"name":"k8s_get_resource","arguments":{"namespace":"bosgenesis","kind":"Deployment","name":"bosgenesis-k8s-inspector-mcp","actor":"manual-curl"}}}'
+```
+
 ## Risks and Mitigations
 
 | Risk | Mitigation |
@@ -369,6 +481,8 @@ curl -i -N \
 | Agent attempts cross-namespace access | Namespace policy and namespace-scoped RBAC. |
 | Agent attempts Secret access | Policy blocks generic Secret operations, exposes no Secret read tools, and RBAC omits Secret read/update/patch verbs. |
 | ConfigMap accidentally contains sensitive values | List responses omit values; get responses require explicit `include_data=true`. |
+| Raw reconstruction lacks full specs | `k8s_get_resource` provides full allowed namespaced object JSON without granting raw `kubectl` or Secret access. |
+| MCP client displays generic TaskGroup errors on policy denial | `k8s_get_resource` returns structured `status=denied` payloads for policy-denied MCP calls. |
 | Secret value leaks through temporary Secret workflow | Responses and audit summaries include key names only, never values. |
 | Agent attempts privileged pod creation | Pod security validation rejects unsafe fields. |
 | Kubernetes auth becomes anonymous | Explicit ServiceAccount bearer token header in Kubernetes ApiClient. |

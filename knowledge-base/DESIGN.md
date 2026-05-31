@@ -41,6 +41,7 @@ The recommended implementation is a small **FastAPI + MCP-compatible service** r
 | Audit every action | Every MCP tool call must produce an audit event with actor, request, decision, result, and correlation ID. |
 | Safe destructive operations | Delete/replace/scale operations require dry-run, validation, and optional approval mode. |
 | Codex-friendly interface | Codex should call clean MCP tools such as `k8s_list_pods`, not raw `kubectl`. |
+| Reconstruction evidence | Approved agents can fetch full JSON for selected safe namespaced resources through `k8s_get_resource`. |
 | BOS Genesis aligned | The service fits the existing BOS Genesis MCP, A2A, SigNoz, Langfuse, Kafka, MongoDB, ClickHouse, and PostgreSQL direction. |
 
 ---
@@ -69,7 +70,7 @@ flowchart LR
     Guard --> AuditStart[Audit: Request Received]
     Guard --> K8sClient[Kubernetes Python Client]
 
-    K8sClient --> SA[ServiceAccount: bosgenesis-k8s-mcp]
+    K8sClient --> SA[ServiceAccount: bosgenesis-k8s-inspector-mcp]
     SA --> RBAC[Role + RoleBinding in bosgenesis]
     RBAC --> NS[(Namespace: bosgenesis)]
 
@@ -96,10 +97,10 @@ The MCP server should run **inside the same Kubernetes cluster** and preferably 
 
 ```text
 Namespace: bosgenesis
-Service: bos-k8s-mcp-server
-ServiceAccount: bosgenesis-k8s-mcp
+Service: bosgenesis-k8s-inspector-mcp
+ServiceAccount: bosgenesis-k8s-inspector-mcp
 Ingress: optional, protected
-Internal URL: http://bos-k8s-mcp-server.bosgenesis.svc.cluster.local:8080
+Internal URL: http://bosgenesis-k8s-inspector-mcp.bosgenesis.svc.cluster.local:8080
 ```
 
 Recommended access pattern:
@@ -155,7 +156,7 @@ Option A — hardcoded namespace
 apiVersion: v1
 kind: ServiceAccount
 metadata:
-  name: bosgenesis-k8s-mcp
+  name: bosgenesis-k8s-inspector-mcp
   namespace: bosgenesis
 ```
 
@@ -167,7 +168,7 @@ The Role must be created only in the `bosgenesis` namespace.
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
-  name: bosgenesis-k8s-mcp-role
+  name: bosgenesis-k8s-inspector-mcp-role
   namespace: bosgenesis
 rules:
   - apiGroups: [""]
@@ -198,7 +199,6 @@ rules:
   - apiGroups: ["networking.k8s.io"]
     resources:
       - ingresses
-      - networkpolicies
     verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
 ```
 
@@ -208,15 +208,15 @@ rules:
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
 metadata:
-  name: bosgenesis-k8s-mcp-binding
+  name: bosgenesis-k8s-inspector-mcp-binding
   namespace: bosgenesis
 subjects:
   - kind: ServiceAccount
-    name: bosgenesis-k8s-mcp
+    name: bosgenesis-k8s-inspector-mcp
     namespace: bosgenesis
 roleRef:
   kind: Role
-  name: bosgenesis-k8s-mcp-role
+  name: bosgenesis-k8s-inspector-mcp-role
   apiGroup: rbac.authorization.k8s.io
 ```
 
@@ -278,26 +278,35 @@ flowchart TB
 | `k8s_describe_pod` | Describe one pod. |
 | `k8s_get_pod_logs` | Read recent logs for one pod/container. |
 | `k8s_list_deployments` | List deployments and replica status. |
-| `k8s_describe_deployment` | Inspect one deployment. |
 | `k8s_list_services` | List services. |
 | `k8s_list_ingresses` | List ingress hosts and paths. |
 | `k8s_list_configmaps` | List ConfigMaps without dumping sensitive content by default. |
+| `k8s_get_configmap` | Read one ConfigMap; values require explicit `include_data=true`. |
+| `k8s_get_resource` | Read one allowed namespaced resource as full Kubernetes JSON for reconstruction evidence. |
+| `k8s_list_pvcs` | List PersistentVolumeClaims. |
+| `k8s_describe_pvc` | Describe one PersistentVolumeClaim. |
+| `k8s_list_statefulsets` | List StatefulSets. |
 | `k8s_list_events` | List recent namespace events. |
-| `k8s_list_jobs` | List Jobs and CronJobs. |
 
 ### 9.2 Write Tools
 
 | Tool | Purpose | Safety Control |
 |---|---|---|
 | `k8s_apply_manifest` | Create/update approved namespaced resources. | Namespace rewrite + dry-run + policy validation. |
+| `k8s_create_resource` | Create one supported namespaced resource. | API key + namespace and policy validation. |
+| `k8s_update_resource` | Replace/update one supported namespaced resource. | API key + namespace and policy validation. |
+| `k8s_create_pvc` | Create one PersistentVolumeClaim. | PVC-specific kind check + dry-run support. |
+| `k8s_update_pvc` | Replace/update one PersistentVolumeClaim. | PVC-specific kind check + dry-run support. |
 | `k8s_patch_resource` | Patch a supported resource. | Allowed resource list + field restrictions. |
-| `k8s_delete_resource` | Delete a supported resource. | Confirm flag + dry-run + audit. |
+| `k8s_patch_pvc` | Patch one PersistentVolumeClaim. | API key + namespace policy. |
+| `k8s_delete_resource` | Delete a supported resource. | API key + dry-run support + audit. |
+| `k8s_delete_pvc` | Delete one PersistentVolumeClaim. | API key + dry-run support. |
+| `k8s_delete_collection` | Delete filtered resource collection. | Requires label or field selector. |
+| `k8s_delete_pvc_collection` | Delete filtered PVC collection. | Requires label or field selector. |
 | `k8s_scale_deployment` | Scale one deployment. | Min/max replica policy. |
-| `k8s_restart_deployment` | Restart deployment by patching annotation. | Deployment-only. |
-| `k8s_create_configmap` | Create/update ConfigMap. | Size and key validation. |
+| `k8s_bind_pod` | Bind a pending pod to a named node. | Does not read node resources. |
 | `k8s_create_ephemeral_secret` | Create an MCP-owned temporary Secret. | API key, `bosgenesis-mcp-*` name prefix, key-name-only response, TTL annotation. |
 | `k8s_delete_ephemeral_secret` | Delete an MCP-owned temporary Secret. | API key, matching in-session correlation ID, no Secret read. |
-| `k8s_create_job` | Create a one-time Job. | Image allowlist optional. |
 
 ---
 
@@ -347,7 +356,7 @@ sequenceDiagram
     C->>M: k8s_apply_manifest(manifest)
     M->>A: audit request_received
     M->>V: parse YAML/JSON
-    V->>V: force namespace=bosgenesis
+    V->>V: require namespace=bosgenesis
     V->>P: validate kind/apiVersion/verb/resource
     P-->>V: allowed
     V->>DR: server-side dry-run apply
@@ -416,6 +425,33 @@ Later, this can move to:
 - BOS Genesis Policy Guard Agent
 - A2A gateway approval flow
 
+### 12.3 Resource Detail Read Policy
+
+The implemented server includes a generic read-only detail tool:
+
+```text
+k8s_get_resource
+```
+
+It is intentionally narrower than a generic Kubernetes object reader. Before any Kubernetes API call, the server validates:
+
+- namespace equals `bosgenesis`
+- name is present and non-empty
+- kind is one of `ConfigMap`, `Service`, `Deployment`, `StatefulSet`, `DaemonSet`, `Job`, `CronJob`, `PersistentVolumeClaim`, or `Ingress`
+- kind is not Secret, RBAC, cluster-scoped, storage class, ingress class, priority class, or webhook configuration
+
+The returned object is the full Kubernetes API JSON, including runtime metadata and status. The inspector does not convert it into a portable manifest. Downstream tools own normalization and redaction.
+
+MCP denials for this tool return structured payloads, for example:
+
+```json
+{
+  "status": "denied",
+  "error": "policy_denied",
+  "message": "Kind 'Secret' is blocked by policy."
+}
+```
+
 ---
 
 ## 13. Audit and Observability Design
@@ -430,7 +466,7 @@ Every MCP call must produce an audit record.
   "correlation_id": "uuid",
   "timestamp": "2026-05-17T19:00:00Z",
   "actor": "codex",
-  "source": "bos-k8s-mcp-server",
+  "source": "bosgenesis-k8s-inspector-mcp",
   "tool_name": "k8s_list_pods",
   "namespace": "bosgenesis",
   "operation": "list",
@@ -540,12 +576,42 @@ Example `k8s_list_pods` response:
 }
 ```
 
+Example `k8s_get_resource` success response:
+
+```json
+{
+  "status": "ok",
+  "namespace": "bosgenesis",
+  "kind": "Deployment",
+  "name": "example",
+  "resource": {
+    "apiVersion": "apps/v1",
+    "kind": "Deployment",
+    "metadata": {},
+    "spec": {},
+    "status": {}
+  }
+}
+```
+
+Example not-found response:
+
+```json
+{
+  "status": "not_found",
+  "namespace": "bosgenesis",
+  "kind": "Deployment",
+  "name": "missing",
+  "error": "resource_not_found"
+}
+```
+
 ---
 
 ## 16. Recommended Project Structure
 
 ```text
-bos-k8s-mcp-server/
+bosgenesis-k8s-inspector-mcp/
   README.md
   requirements.txt
   Dockerfile
@@ -593,8 +659,8 @@ bos-k8s-mcp-server/
 ```mermaid
 flowchart TB
     subgraph BOS[Namespace: bosgenesis]
-        MCPPod[Pod: bos-k8s-mcp-server]
-        MCPSvc[Service: bos-k8s-mcp-server]
+        MCPPod[Pod: bosgenesis-k8s-inspector-mcp]
+        MCPSvc[Service: bosgenesis-k8s-inspector-mcp]
         MCPIng[Optional Protected Ingress]
         SA[ServiceAccount]
         Role[Role]
@@ -677,22 +743,24 @@ Expected answer:
 The bosgenesis namespace currently has 12 pods. 11 are Running and 1 is Pending. The memory-agent, Langflow, Dify, Ollama, Qdrant, Kafka, PostgreSQL, MongoDB, Redis, and ClickHouse services are present.
 ```
 
-### Example 2 — Restart memory-agent deployment
+### Example 2 — Read full deployment detail
 
 User asks:
 
 ```text
-Restart the memory-agent deployment.
+Show the full Kubernetes object for the k8s inspector deployment.
 ```
 
 Codex calls:
 
 ```json
 {
-  "tool": "k8s_restart_deployment",
+  "tool": "k8s_get_resource",
   "arguments": {
-    "name": "bosgenesis-memory-agent-api",
-    "confirm": true
+    "namespace": "bosgenesis",
+    "kind": "Deployment",
+    "name": "bosgenesis-k8s-inspector-mcp",
+    "actor": "codex"
   }
 }
 ```
@@ -701,12 +769,12 @@ MCP server performs:
 
 ```text
 1. Validate namespace = bosgenesis
-2. Validate resource = deployment
-3. Validate verb = patch
+2. Validate kind = Deployment is detail-read allowed
+3. Validate name is present
 4. Write audit start
-5. Patch restart annotation
-6. Write audit success/failure
-7. Emit SigNoz span
+5. Read one namespaced Deployment
+6. Return full serialized Kubernetes JSON
+7. Write audit success/failure
 ```
 
 ---
@@ -725,6 +793,12 @@ k8s_get_pod_logs
 k8s_list_services
 k8s_list_ingresses
 k8s_list_deployments
+k8s_list_statefulsets
+k8s_list_pvcs
+k8s_describe_pvc
+k8s_list_configmaps
+k8s_get_configmap
+k8s_get_resource
 k8s_list_events
 ```
 
@@ -732,6 +806,7 @@ Outcome:
 
 ```text
 Codex can answer: What pods/services/ingress/deployments exist in bosgenesis?
+Reconstruction agents can fetch full allowed resource JSON without raw kubectl or Secret access.
 ```
 
 ### Phase 2 — Controlled write operations
@@ -740,10 +815,20 @@ Build tools:
 
 ```text
 k8s_apply_manifest
+k8s_create_resource
+k8s_update_resource
 k8s_patch_resource
 k8s_scale_deployment
-k8s_restart_deployment
 k8s_delete_resource
+k8s_delete_collection
+k8s_create_pvc
+k8s_update_pvc
+k8s_patch_pvc
+k8s_delete_pvc
+k8s_delete_pvc_collection
+k8s_bind_pod
+k8s_create_ephemeral_secret
+k8s_delete_ephemeral_secret
 ```
 
 Outcome:
@@ -839,14 +924,25 @@ k8s_list_pods
 k8s_describe_pod
 k8s_get_pod_logs
 k8s_list_deployments
+k8s_list_statefulsets
 k8s_list_services
+k8s_list_configmaps
+k8s_get_configmap
+k8s_get_resource
+k8s_list_pvcs
+k8s_describe_pvc
 k8s_list_ingresses
 k8s_list_events
 k8s_apply_manifest
+k8s_create_resource
+k8s_update_resource
 k8s_patch_resource
 k8s_scale_deployment
-k8s_restart_deployment
 k8s_delete_resource
+k8s_delete_collection
+k8s_bind_pod
+k8s_create_ephemeral_secret
+k8s_delete_ephemeral_secret
 ```
 
 ---

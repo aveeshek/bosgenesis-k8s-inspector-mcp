@@ -17,6 +17,7 @@ from .models import (
     DeleteResourceRequest,
     EphemeralSecretCreateRequest,
     EphemeralSecretDeleteRequest,
+    GetResourceRequest,
     ManifestMutationRequest,
     PatchResourceRequest,
     PvcDeleteCollectionRequest,
@@ -148,6 +149,20 @@ def get_configmap(
 ) -> dict:
     try:
         return ops.get_configmap(configmap_name, include_data=include_data, actor=actor)
+    except Exception as exc:
+        raise handle_error(exc)
+
+
+@app.post("/resource", dependencies=[Depends(require_api_key)])
+def get_resource(req: GetResourceRequest) -> dict:
+    try:
+        return ops.get_resource(
+            namespace=req.namespace,
+            kind=req.kind,
+            name=req.name,
+            actor=req.actor,
+            correlation_id=req.correlation_id,
+        )
     except Exception as exc:
         raise handle_error(exc)
 

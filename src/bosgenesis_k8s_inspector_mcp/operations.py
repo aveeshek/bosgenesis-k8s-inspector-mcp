@@ -200,6 +200,121 @@ class KubernetesOperations:
             )
             return result
 
+    def get_resource(
+        self,
+        namespace: str,
+        kind: str,
+        name: str,
+        actor: str = "codex",
+        correlation_id: str | None = None,
+    ) -> dict[str, Any]:
+        try:
+            namespace, kind, name, resource = policy.validate_detail_read(namespace, kind, name)
+        except PolicyDeniedError as exc:
+            audit_logger.emit(
+                action="get",
+                operation="k8s_get_resource",
+                resource=str(kind or "unknown"),
+                namespace=str(namespace or "unknown"),
+                name=name or None,
+                status="denied",
+                actor=actor,
+                correlation_id=correlation_id,
+                tool="k8s_get_resource",
+                resource_kind=str(kind or "unknown"),
+                dry_run=False,
+                decision="denied",
+                reason=str(exc),
+            )
+            raise
+
+        audit_start = audit_logger.emit(
+            action="get",
+            operation="k8s_get_resource",
+            resource=resource,
+            namespace=namespace,
+            name=name,
+            status="started",
+            actor=actor,
+            request={"kind": kind, "dry_run": False},
+            correlation_id=correlation_id,
+            tool="k8s_get_resource",
+            resource_kind=kind,
+            dry_run=False,
+            decision="allowed",
+        )
+        try:
+            with audit_logger.span(
+                "k8s.get_resource",
+                {"k8s.namespace": namespace, "k8s.kind": kind, "k8s.name": name},
+            ):
+                obj = self._read_namespaced_resource(kind=kind, name=name, namespace=namespace)
+                serialized = api_client().sanitize_for_serialization(obj)
+            audit_logger.emit(
+                action="get",
+                operation="k8s_get_resource",
+                resource=resource,
+                namespace=namespace,
+                name=name,
+                status="success",
+                actor=actor,
+                response_summary={"kind": kind, "name": name},
+                correlation_id=audit_start["correlation_id"],
+                tool="k8s_get_resource",
+                resource_kind=kind,
+                dry_run=False,
+                decision="allowed",
+            )
+            return {
+                "status": "ok",
+                "namespace": namespace,
+                "kind": kind,
+                "name": name,
+                "resource": serialized,
+            }
+        except ApiException as exc:
+            if exc.status == 404:
+                audit_logger.emit(
+                    action="get",
+                    operation="k8s_get_resource",
+                    resource=resource,
+                    namespace=namespace,
+                    name=name,
+                    status="failed",
+                    actor=actor,
+                    error="resource_not_found",
+                    correlation_id=audit_start["correlation_id"],
+                    tool="k8s_get_resource",
+                    resource_kind=kind,
+                    dry_run=False,
+                    decision="allowed",
+                    reason="resource_not_found",
+                )
+                return {
+                    "status": "not_found",
+                    "namespace": namespace,
+                    "kind": kind,
+                    "name": name,
+                    "error": "resource_not_found",
+                }
+            audit_logger.emit(
+                action="get",
+                operation="k8s_get_resource",
+                resource=resource,
+                namespace=namespace,
+                name=name,
+                status="failed",
+                actor=actor,
+                error=str(exc),
+                correlation_id=audit_start["correlation_id"],
+                tool="k8s_get_resource",
+                resource_kind=kind,
+                dry_run=False,
+                decision="allowed",
+                reason=str(exc),
+            )
+            raise KubernetesOperationError(str(exc)) from exc
+
     def list_pvcs(self, actor: str = "codex") -> list[dict[str, Any]]:
         policy.assert_namespace(self.namespace)
         policy.assert_resource_allowed("persistentvolumeclaims", "list")
@@ -1036,6 +1151,28 @@ class KubernetesOperations:
             return RESOURCE_DEFS[resource]
         except KeyError as exc:
             raise PolicyDeniedError(f"Resource '{resource}' is not supported by this MCP server.") from exc
+
+    @staticmethod
+    def _read_namespaced_resource(kind: str, name: str, namespace: str) -> Any:
+        if kind == "ConfigMap":
+            return core_v1().read_namespaced_config_map(name=name, namespace=namespace)
+        if kind == "Service":
+            return core_v1().read_namespaced_service(name=name, namespace=namespace)
+        if kind == "PersistentVolumeClaim":
+            return core_v1().read_namespaced_persistent_volume_claim(name=name, namespace=namespace)
+        if kind == "Deployment":
+            return apps_v1().read_namespaced_deployment(name=name, namespace=namespace)
+        if kind == "StatefulSet":
+            return apps_v1().read_namespaced_stateful_set(name=name, namespace=namespace)
+        if kind == "DaemonSet":
+            return apps_v1().read_namespaced_daemon_set(name=name, namespace=namespace)
+        if kind == "Job":
+            return batch_v1().read_namespaced_job(name=name, namespace=namespace)
+        if kind == "CronJob":
+            return batch_v1().read_namespaced_cron_job(name=name, namespace=namespace)
+        if kind == "Ingress":
+            return networking_v1().read_namespaced_ingress(name=name, namespace=namespace)
+        raise PolicyDeniedError(f"Kind '{kind}' is not supported by this MCP server.")
 
     @staticmethod
     def _enforce_safe_defaults(manifest: dict[str, Any]) -> None:

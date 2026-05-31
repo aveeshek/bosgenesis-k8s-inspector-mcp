@@ -6,6 +6,37 @@ from .config import config
 from .errors import PolicyDeniedError
 
 
+DETAIL_READ_ALLOWED_KINDS = {
+    "ConfigMap",
+    "Service",
+    "Deployment",
+    "StatefulSet",
+    "DaemonSet",
+    "Job",
+    "CronJob",
+    "PersistentVolumeClaim",
+    "Ingress",
+}
+
+DETAIL_READ_BLOCKED_KINDS = {
+    "Secret",
+    "ServiceAccount",
+    "Role",
+    "RoleBinding",
+    "ClusterRole",
+    "ClusterRoleBinding",
+    "Namespace",
+    "Node",
+    "PersistentVolume",
+    "CustomResourceDefinition",
+    "StorageClass",
+    "IngressClass",
+    "PriorityClass",
+    "MutatingWebhookConfiguration",
+    "ValidatingWebhookConfiguration",
+}
+
+
 class NamespacePolicy:
     def __init__(self) -> None:
         self.policy = config.policy
@@ -109,6 +140,25 @@ class NamespacePolicy:
                 raise PolicyDeniedError("hostPID is blocked by policy.")
             if key == "hostIPC" and value is True and self.mutation_safety.get("reject_host_ipc", True):
                 raise PolicyDeniedError("hostIPC is blocked by policy.")
+
+    def validate_detail_read(
+        self,
+        namespace: str | None,
+        kind: str,
+        name: str | None,
+    ) -> tuple[str, str, str, str]:
+        namespace = self.assert_namespace(namespace)
+        kind = str(kind or "").strip()
+        name = str(name or "").strip()
+        if not name:
+            raise PolicyDeniedError("Resource name is required.")
+        if kind in DETAIL_READ_BLOCKED_KINDS:
+            raise PolicyDeniedError(f"Kind '{kind}' is blocked by policy.")
+        if kind not in DETAIL_READ_ALLOWED_KINDS:
+            raise PolicyDeniedError(f"Kind '{kind}' is not allowed for detail reads.")
+        resource = kind_to_resource(kind)
+        self.assert_resource_allowed(resource, "get")
+        return namespace, kind, name, resource
 
     def _validate_pod_security(self, manifest: dict[str, Any]) -> None:
         kind = str(manifest.get("kind", ""))

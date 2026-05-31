@@ -9,12 +9,14 @@ It exposes:
 - A remote Streamable HTTP MCP endpoint at `/mcp`
 - A REST API for direct integrations and diagnostics
 - A governed Kubernetes operation layer restricted to the `bosgenesis` namespace
+- A safe full-resource detail read path for selected namespaced resources used as reconstruction evidence
 
 The service runs inside Kubernetes and uses in-cluster authentication through its own ServiceAccount and namespace RoleBinding.
 
 ## Goals
 
 - Let Codex and other MCP clients inspect BOS Genesis Kubernetes resources without local kubeconfig access.
+- Let approved reconstruction workflows fetch full JSON for selected safe namespaced resources without using raw `kubectl`.
 - Allow controlled mutations for approved namespaced resources.
 - Prevent cross-namespace and cluster-scoped operations.
 - Block high-risk resources such as Secrets, RBAC resources, Nodes, Namespaces, PersistentVolumes, CRDs, exec, attach, and port-forward.
@@ -81,6 +83,7 @@ flowchart TB
 | FastMCP server | Exposes MCP tools for reads and governed writes. |
 | Policy engine | Enforces namespace, blocked resources, supported resources, and pod safety rules. |
 | Operation layer | Normalizes Kubernetes list, get, apply, create, update, patch, delete, bind, and scale operations. |
+| Resource detail reader | Fetches one allowed namespaced resource as full serialized Kubernetes JSON for reconstruction evidence. |
 | Kubernetes client | Uses in-cluster ServiceAccount token through explicit bearer authentication. |
 | Audit logger | Emits JSON audit records for allowed, denied, successful, and failed operations. |
 | Telemetry | Emits OpenTelemetry spans to SigNoz when enabled. |
@@ -174,6 +177,36 @@ Narrow Secret exception:
 - TTL controls in-session memory expiry and is written as an annotation; callers should explicitly delete the Secret because Kubernetes does not auto-delete Secrets from custom annotations.
 
 ConfigMap reads are deliberately narrower than full raw Kubernetes objects by default. List operations return metadata and key names only, and single ConfigMap reads return values only when `include_data=true` is explicitly requested. This keeps ConfigMaps useful for diagnostics while preserving the stronger Secret guardrail.
+
+## Resource Detail Reads
+
+`k8s_get_resource` provides a generic read-only detail path for reconstruction evidence. It validates namespace, kind, and name before making any Kubernetes API call, then fetches exactly one object through the Kubernetes Python client.
+
+Allowed detail kinds:
+
+- ConfigMap
+- Service
+- Deployment
+- StatefulSet
+- DaemonSet
+- Job
+- CronJob
+- PersistentVolumeClaim
+- Ingress
+
+The response preserves the Kubernetes object as returned by the API server, including `metadata`, `spec`, and `status`. The inspector does not normalize this object into a portable manifest. That responsibility belongs to downstream consumers.
+
+Denied MCP calls return a structured payload:
+
+```json
+{
+  "status": "denied",
+  "error": "policy_denied",
+  "message": "Namespace 'default' is not allowed. Only 'bosgenesis' is permitted."
+}
+```
+
+REST calls to `/resource` use the same operation layer but continue to surface policy denials as HTTP `403`.
 
 ## Availability and Operations
 

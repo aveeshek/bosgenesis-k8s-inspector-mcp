@@ -67,6 +67,70 @@ ConfigMaps are allowed namespaced application configuration resources, but they 
 
 This does not change the hard Secret read guardrail. Kubernetes Secrets remain blocked for generic operations, and RBAC grants only create/delete for the dedicated ephemeral Secret workflow.
 
+## Resource detail read boundary
+
+The server now exposes one generic full-detail read tool for reconstruction evidence:
+
+```text
+k8s_get_resource
+```
+
+This tool is read-only and fetches exactly one namespaced object after policy validation. It returns the Kubernetes API object as serialized JSON without stripping runtime metadata, status, managed fields, annotations, or spec. Downstream consumers, such as the MoP creation agent, own manifest normalization, target namespace rewrite, runtime metadata removal, and value redaction.
+
+Allowed detail-read kinds:
+
+- `ConfigMap`
+- `Service`
+- `Deployment`
+- `StatefulSet`
+- `DaemonSet`
+- `Job`
+- `CronJob`
+- `PersistentVolumeClaim`
+- `Ingress`
+
+Always blocked for detail reads:
+
+- `Secret`
+- `ServiceAccount`
+- `Role`
+- `RoleBinding`
+- `ClusterRole`
+- `ClusterRoleBinding`
+- `Namespace`
+- `Node`
+- `PersistentVolume`
+- `CustomResourceDefinition`
+- `StorageClass`
+- `IngressClass`
+- `PriorityClass`
+- `MutatingWebhookConfiguration`
+- `ValidatingWebhookConfiguration`
+
+```mermaid
+flowchart TB
+    Request["k8s_get_resource request"] --> NS["Validate namespace == bosgenesis"]
+    NS --> Name["Require non-empty name"]
+    Name --> Kind["Validate kind allowlist"]
+    Kind --> Blocked{"Blocked or cluster scoped?"}
+    Blocked -- Yes --> Denied["Audit denied"]
+    Blocked -- No --> Fetch["Read one namespaced object"]
+    Fetch --> Serialize["Kubernetes client serialization"]
+    Serialize --> Response["Return full resource JSON"]
+```
+
+MCP denials for this tool are returned as structured tool payloads:
+
+```json
+{
+  "status": "denied",
+  "error": "policy_denied",
+  "message": "Kind 'Secret' is blocked by policy."
+}
+```
+
+The operation layer still raises policy errors for REST so HTTP clients receive the normal `403` response.
+
 ## Ephemeral Secret boundary
 
 The MCP server has a narrow write-only Secret exception for installation workflows that need Kubernetes Secret references.

@@ -8,6 +8,7 @@ from mcp.server.fastmcp import FastMCP
 from mcp.server.transport_security import TransportSecuritySettings
 
 from .config import config
+from .errors import PolicyDeniedError
 from .operations import ops
 from .telemetry import setup_telemetry
 
@@ -78,6 +79,37 @@ def k8s_get_configmap(
     when the ConfigMap values are explicitly needed.
     """
     return ops.get_configmap(configmap_name, include_data=include_data, actor=actor)
+
+
+@mcp.tool()
+def k8s_get_resource(
+    namespace: str,
+    kind: str,
+    name: str,
+    actor: str = "codex",
+    correlation_id: str | None = None,
+) -> dict[str, Any]:
+    """Read one allowed namespaced Kubernetes resource as full JSON for reconstruction evidence.
+
+    Secrets and cluster-scoped resources are denied.
+    """
+    try:
+        return ops.get_resource(
+            namespace=namespace,
+            kind=kind,
+            name=name,
+            actor=actor,
+            correlation_id=correlation_id,
+        )
+    except PolicyDeniedError as exc:
+        return {
+            "status": "denied",
+            "namespace": namespace,
+            "kind": kind,
+            "name": name,
+            "error": "policy_denied",
+            "message": str(exc),
+        }
 
 
 @mcp.tool()

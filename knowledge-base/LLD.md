@@ -54,6 +54,7 @@ Important routes:
 | `/services` | GET | List services. |
 | `/configmaps` | GET | List ConfigMaps with metadata and key names only. |
 | `/configmaps/{configmap_name}` | GET | Read one ConfigMap; values require `include_data=true`. |
+| `/resource` | POST | Read one allowed namespaced resource as full JSON. |
 | `/deployments` | GET | List deployments. |
 | `/apply` | POST | Server-side apply. |
 | `/create` | POST | Create supported resource. |
@@ -98,6 +99,7 @@ Read tools:
 - `k8s_list_services`
 - `k8s_list_configmaps`
 - `k8s_get_configmap`
+- `k8s_get_resource`
 - `k8s_list_deployments`
 - `k8s_list_statefulsets`
 - `k8s_list_ingresses`
@@ -182,6 +184,16 @@ Policy rejects:
 - ServiceAccount override in workload specs.
 - Dangerous patch payloads.
 
+Detail reads use a narrower explicit kind allowlist through `validate_detail_read(namespace, kind, name)`. The validation requires:
+
+- namespace equals the configured namespace, currently `bosgenesis`
+- non-empty resource name
+- kind is one of the allowed detail-read kinds
+- kind is not in the explicit blocked-kind list
+- resolved resource is allowed for `get`
+
+Allowed detail-read kinds are `ConfigMap`, `Service`, `Deployment`, `StatefulSet`, `DaemonSet`, `Job`, `CronJob`, `PersistentVolumeClaim`, and `Ingress`.
+
 ## Operation Layer
 
 File: `src/bosgenesis_k8s_inspector_mcp/operations.py`
@@ -216,6 +228,80 @@ sequenceDiagram
     K-->>O: pod list
     O->>A: audit success
     O-->>T: normalized pod summaries
+```
+
+### Resource Detail Read Flow
+
+`get_resource(namespace, kind, name, actor, correlation_id)` is the generic full-detail read operation. It does not use raw `kubectl` and does not use the dynamic client for arbitrary kinds. Instead, it maps each allowed kind to a typed Kubernetes client read method.
+
+```mermaid
+sequenceDiagram
+    participant T as MCP/API Endpoint
+    participant O as Operations
+    participant P as Policy
+    participant K as Kubernetes API
+    participant A as Audit
+
+    T->>O: get_resource(namespace, kind, name)
+    O->>P: validate_detail_read
+    alt denied
+        O->>A: audit denied
+        O-->>T: PolicyDeniedError or structured MCP denial
+    else allowed
+        O->>A: audit started
+        O->>K: read one namespaced object
+        alt found
+            K-->>O: Kubernetes object
+            O->>O: sanitize_for_serialization
+            O->>A: audit success
+            O-->>T: status=ok with full resource
+        else not found
+            K-->>O: 404
+            O->>A: audit failed reason=resource_not_found
+            O-->>T: status=not_found
+        end
+    end
+```
+
+Response shapes:
+
+```json
+{
+  "status": "ok",
+  "namespace": "bosgenesis",
+  "kind": "Deployment",
+  "name": "example",
+  "resource": {
+    "apiVersion": "apps/v1",
+    "kind": "Deployment",
+    "metadata": {},
+    "spec": {},
+    "status": {}
+  }
+}
+```
+
+```json
+{
+  "status": "not_found",
+  "namespace": "bosgenesis",
+  "kind": "Deployment",
+  "name": "missing",
+  "error": "resource_not_found"
+}
+```
+
+For MCP only, policy denials are caught at the tool boundary and returned as structured payloads:
+
+```json
+{
+  "status": "denied",
+  "namespace": "bosgenesis",
+  "kind": "Secret",
+  "name": "blocked",
+  "error": "policy_denied",
+  "message": "Kind 'Secret' is blocked by policy."
+}
 ```
 
 ### Mutation Flow
@@ -316,6 +402,8 @@ flowchart LR
 | `KubernetesOperationError` | 502 | Kubernetes API operation failed. |
 | Other exception | 500 | Unexpected application error. |
 
+MCP `k8s_get_resource` is the one read tool that converts policy denials into a structured non-exception response to avoid generic TaskGroup client errors. Other operation-layer policy denials still raise normally and are audited.
+
 ## Configuration
 
 Important environment variables:
@@ -340,6 +428,10 @@ Current tests cover:
 - Config path resolution and env precedence.
 - HTTP MCP mount and health metadata.
 - Kubernetes auth diagnostics and ServiceAccount header construction.
+- Full resource detail reads for Deployment, Service, ConfigMap, and PersistentVolumeClaim.
+- Denials for Secret, ClusterRole, Namespace, wrong namespace, missing name, and unknown kind in resource detail reads.
+- Controlled not-found behavior for resource detail reads.
+- Structured MCP denial response for `k8s_get_resource`.
 - Deletecollection selector requirement.
 - ConfigMap read value redaction by default.
 - Ephemeral Secret value redaction and in-session delete ownership.
