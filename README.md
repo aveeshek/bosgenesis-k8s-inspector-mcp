@@ -35,6 +35,8 @@ Main endpoints:
 
 ```text
 GET  /health
+GET  /namespace
+PUT  /namespace
 POST /mcp
 GET  /namespace/summary
 GET  /pods
@@ -81,6 +83,8 @@ Tools:
 
 ```text
 k8s_namespace_summary
+k8s_get_namespace
+k8s_set_namespace
 k8s_list_pods
 k8s_describe_pod
 k8s_get_pod_logs
@@ -129,7 +133,7 @@ flowchart LR
 
     K8S --> SA[ServiceAccount]
     SA --> RBAC[Namespace Role + RoleBinding]
-    RBAC --> NS[(bosgenesis namespace only)]
+    RBAC --> NS[(active configured namespace only)]
 
     OTEL --> SIGNOZ[SigNoz OTel Collector]
 ```
@@ -142,7 +146,10 @@ The service is protected by two layers.
 
 ### Kubernetes RBAC boundary
 
-The Kubernetes `Role` is created only inside the `bosgenesis` namespace.
+The Kubernetes `Role` is namespace-scoped. The default deployment creates it
+inside the `bosgenesis` namespace. If the runtime namespace is switched to a
+different namespace such as `signoz`, the service account must also have an
+equivalent namespaced Role/RoleBinding there.
 
 The service account does **not** receive:
 
@@ -161,13 +168,24 @@ RBAC write access
 Before calling Kubernetes, the application validates:
 
 ```text
-metadata.namespace == bosgenesis
+metadata.namespace == active configured namespace
 resource is allowed
 kind is not cluster-scoped
 kind is not blocked
 pod security settings are safe
 mutation request includes the configured API key
 ```
+
+The allowed application namespace defaults to `bosgenesis` and can be switched at
+runtime through `PUT /namespace` or the `k8s_set_namespace` MCP tool. This changes
+the single allowed namespace; it does not permit cross-namespace reads or writes.
+After switching to `signoz`, requests for `bosgenesis` are denied until the
+runtime namespace is switched back.
+
+The default kustomize bundle also includes a read-only Role/RoleBinding in the
+`signoz` namespace for MoP discovery. This grants the inspector ServiceAccount
+read access to Signoz workloads and services without granting cluster-admin,
+Secret reads, or write verbs in `signoz`.
 
 Default blocked items:
 

@@ -1,5 +1,6 @@
 from fastapi.routing import Mount
 
+from bosgenesis_k8s_inspector_mcp.config import config
 from bosgenesis_k8s_inspector_mcp.server_fastapi import app
 
 
@@ -14,6 +15,32 @@ def test_health_reports_mcp_endpoint():
 
     assert response.status_code == 200
     assert response.json()["mcp_endpoint"] == "/mcp"
+
+
+def test_namespace_can_be_switched_at_runtime():
+    from fastapi.testclient import TestClient
+
+    original = config._runtime_namespace
+    try:
+        client = TestClient(app)
+        response = client.put(
+            "/namespace",
+            json={"namespace": "signoz", "actor": "pytest"},
+            headers={"X-API-Key": config.env.api_key or ""},
+        )
+
+        assert response.status_code == 200
+        payload = response.json()
+        assert payload["configured_namespace"] == "bosgenesis"
+        assert payload["active_namespace"] == "signoz"
+        assert payload["session_context_key"] == "namespace:signoz"
+        assert payload["updated_by"] == "pytest"
+        assert client.get(
+            "/namespace", headers={"X-API-Key": config.env.api_key or ""}
+        ).json()["active_namespace"] == "signoz"
+        assert client.get("/health").json()["namespace"] == "signoz"
+    finally:
+        config._runtime_namespace = original
 
 
 def test_pvc_routes_exist():

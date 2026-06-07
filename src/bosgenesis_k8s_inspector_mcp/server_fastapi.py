@@ -19,6 +19,7 @@ from .models import (
     EphemeralSecretDeleteRequest,
     GetResourceRequest,
     ManifestMutationRequest,
+    NamespaceSwitchRequest,
     PatchResourceRequest,
     PvcDeleteCollectionRequest,
     PvcPatchRequest,
@@ -76,6 +77,8 @@ def handle_error(exc: Exception) -> HTTPException:
         return HTTPException(status_code=403, detail=str(exc))
     if isinstance(exc, KubernetesOperationError):
         return HTTPException(status_code=502, detail=str(exc))
+    if isinstance(exc, ValueError):
+        return HTTPException(status_code=400, detail=str(exc))
     return HTTPException(status_code=500, detail=str(exc))
 
 
@@ -85,12 +88,36 @@ def health() -> dict:
         "status": "ok",
         "service": "bosgenesis-k8s-inspector-mcp",
         "namespace": config.namespace,
+        "configured_namespace": config.configured_namespace,
         "mode": "api",
         "k8s_auth_mode": config.k8s_auth_mode,
         "k8s_auth": auth_diagnostics(),
         "mcp_endpoint": "/mcp",
         "otel_enabled": config.env.otel_enabled,
     }
+
+
+@app.get("/namespace", dependencies=[Depends(require_api_key)])
+def get_namespace() -> dict:
+    return {
+        "configured_namespace": config.configured_namespace,
+        "active_namespace": config.namespace,
+        "session_context_key": f"namespace:{config.namespace}",
+    }
+
+
+@app.put("/namespace", dependencies=[Depends(require_api_key)])
+def set_namespace(req: NamespaceSwitchRequest) -> dict:
+    try:
+        namespace = config.set_runtime_namespace(req.namespace)
+        return {
+            "configured_namespace": config.configured_namespace,
+            "active_namespace": namespace,
+            "session_context_key": f"namespace:{namespace}",
+            "updated_by": req.actor,
+        }
+    except Exception as exc:
+        raise handle_error(exc)
 
 
 @app.get("/namespace/summary", dependencies=[Depends(require_api_key)])

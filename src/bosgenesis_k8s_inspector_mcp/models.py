@@ -95,6 +95,11 @@ class GetResourceRequest(BaseModel):
     correlation_id: str | None = None
 
 
+class NamespaceSwitchRequest(BaseModel):
+    namespace: str = Field(min_length=1, max_length=63)
+    actor: str = "codex"
+
+
 class BindPodRequest(BaseModel):
     pod_name: str
     node_name: str

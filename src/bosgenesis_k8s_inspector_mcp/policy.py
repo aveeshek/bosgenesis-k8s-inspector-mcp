@@ -40,7 +40,6 @@ DETAIL_READ_BLOCKED_KINDS = {
 class NamespacePolicy:
     def __init__(self) -> None:
         self.policy = config.policy
-        self.allowed_namespace = config.namespace
         self.blocked_resources = set(self.policy.get("blocked_resources", []))
         self.blocked_subresources = set(self.policy.get("blocked_subresources", []))
         self.allowed_read_resources = set(self.policy.get("allowed_read_resources", []))
@@ -50,9 +49,10 @@ class NamespacePolicy:
     def assert_namespace(self, namespace: str | None) -> str:
         if not namespace:
             raise PolicyDeniedError("Namespace is required.")
-        if namespace != self.allowed_namespace:
+        allowed_namespace = config.namespace
+        if namespace != allowed_namespace:
             raise PolicyDeniedError(
-                f"Namespace '{namespace}' is not allowed. Only '{self.allowed_namespace}' is permitted."
+                f"Namespace '{namespace}' is not allowed. Only '{allowed_namespace}' is permitted."
             )
         return namespace
 

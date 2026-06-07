@@ -4,6 +4,8 @@ resources:
   - serviceaccount.yaml
   - role.yaml
   - rolebinding.yaml
+  - role-signoz-readonly.yaml
+  - rolebinding-signoz-readonly.yaml
   - configmap.yaml
   - deployment.yaml
   - service.yaml

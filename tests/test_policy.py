@@ -1,6 +1,7 @@
 import pytest
 
 from bosgenesis_k8s_inspector_mcp.errors import PolicyDeniedError
+from bosgenesis_k8s_inspector_mcp.config import config
 from bosgenesis_k8s_inspector_mcp.policy import policy
 
 
@@ -11,6 +12,18 @@ def test_reject_wrong_namespace():
 
 def test_allow_bosgenesis_namespace():
     assert policy.assert_namespace("bosgenesis") == "bosgenesis"
+
+
+def test_runtime_namespace_switch_changes_policy_boundary():
+    original = config._runtime_namespace
+    try:
+        config.set_runtime_namespace("signoz")
+
+        assert policy.assert_namespace("signoz") == "signoz"
+        with pytest.raises(PolicyDeniedError, match="Only 'signoz' is permitted"):
+            policy.assert_namespace("bosgenesis")
+    finally:
+        config._runtime_namespace = original
 
 
 def test_reject_secret_manifest():

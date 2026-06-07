@@ -32,6 +32,28 @@ def require_mutation_api_key(api_key: str | None) -> None:
 
 
 @mcp.tool()
+def k8s_get_namespace() -> dict[str, Any]:
+    """Get the currently allowed namespace for this inspector MCP session."""
+    return {
+        "configured_namespace": config.configured_namespace,
+        "active_namespace": config.namespace,
+        "session_context_key": f"namespace:{config.namespace}",
+    }
+
+
+@mcp.tool()
+def k8s_set_namespace(namespace: str, actor: str = "codex") -> dict[str, Any]:
+    """Switch the single allowed namespace for this inspector MCP session."""
+    active_namespace = config.set_runtime_namespace(namespace)
+    return {
+        "configured_namespace": config.configured_namespace,
+        "active_namespace": active_namespace,
+        "session_context_key": f"namespace:{active_namespace}",
+        "updated_by": actor,
+    }
+
+
+@mcp.tool()
 def k8s_namespace_summary(actor: str = "codex") -> dict[str, Any]:
     """Summarize the allowed BOS Genesis Kubernetes namespace."""
     return ops.namespace_summary(actor=actor)

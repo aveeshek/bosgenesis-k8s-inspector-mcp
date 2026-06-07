@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import re
 from pathlib import Path
 from typing import Any
 
@@ -100,15 +101,34 @@ class AppConfig:
         self.env_aliases = load_env_aliases()
         self.settings = load_yaml_file(self.env.settings_file)
         self.policy = load_yaml_file(self.env.policy_file)
+        self._runtime_namespace: str | None = None
 
     @property
     def namespace(self) -> str:
+        return self._runtime_namespace or str(
+            self.env.allowed_namespace
+            or self.settings.get("kubernetes", {}).get("allowed_namespace")
+            or self.policy.get("namespace_boundary", {}).get("allowed_namespace")
+            or "bosgenesis"
+        )
+
+    @property
+    def configured_namespace(self) -> str:
         return str(
             self.env.allowed_namespace
             or self.settings.get("kubernetes", {}).get("allowed_namespace")
             or self.policy.get("namespace_boundary", {}).get("allowed_namespace")
             or "bosgenesis"
         )
+
+    def set_runtime_namespace(self, namespace: str) -> str:
+        namespace = str(namespace or "").strip()
+        if not re.fullmatch(r"[a-z0-9]([-a-z0-9]*[a-z0-9])?", namespace):
+            raise ValueError("namespace must be a Kubernetes RFC1123 label")
+        if len(namespace) > 63:
+            raise ValueError("namespace must be 63 characters or fewer")
+        self._runtime_namespace = namespace
+        return namespace
 
     @property
     def require_api_key(self) -> bool:

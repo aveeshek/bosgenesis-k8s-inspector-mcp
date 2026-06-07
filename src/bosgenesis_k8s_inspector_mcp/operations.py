@@ -40,8 +40,9 @@ _owned_secret_sessions: dict[str, dict[str, Any]] = {}
 
 
 class KubernetesOperations:
-    def __init__(self) -> None:
-        self.namespace = config.namespace
+    @property
+    def namespace(self) -> str:
+        return config.namespace
 
     def namespace_summary(self, actor: str = "codex") -> dict[str, Any]:
         namespace = policy.assert_namespace(self.namespace)
