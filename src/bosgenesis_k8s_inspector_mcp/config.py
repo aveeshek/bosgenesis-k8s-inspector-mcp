@@ -21,6 +21,7 @@ class EnvSettings(BaseSettings):
 
     run_mode: str = Field(default="api")
     allowed_namespace: str = Field(default="bosgenesis")
+    allowed_namespaces: str | None = Field(default=None)
     k8s_auth_mode: str = Field(default="in_cluster")
     kubeconfig_path: str = Field(default="/config/kubeconfig")
     kubeconfig_context: str | None = Field(default=None)
@@ -113,6 +114,30 @@ class AppConfig:
         )
 
     @property
+    def allowed_namespaces(self) -> list[str]:
+        values: list[str] = []
+        raw_env = os.getenv("BOSGENESIS_ALLOWED_NAMESPACES") or self.env.allowed_namespaces
+        if raw_env:
+            values.extend(_split_csv(raw_env))
+        values.extend(_as_list(self.settings.get("kubernetes", {}).get("allowed_namespaces")))
+        boundary = self.policy.get("namespace_boundary", {})
+        values.extend(_as_list(boundary.get("allowed_namespaces")))
+        if not values:
+            single_values = [
+                self.env.allowed_namespace,
+                self.settings.get("kubernetes", {}).get("allowed_namespace"),
+                boundary.get("allowed_namespace"),
+                "bosgenesis",
+            ]
+            values.extend(str(value).strip() for value in single_values if value)
+        deduped = []
+        for value in values:
+            namespace = self.validate_namespace_name(value)
+            if namespace not in deduped:
+                deduped.append(namespace)
+        return deduped
+
+    @property
     def configured_namespace(self) -> str:
         return str(
             self.env.allowed_namespace
@@ -121,13 +146,38 @@ class AppConfig:
             or "bosgenesis"
         )
 
+    @property
+    def namespace_access(self) -> dict[str, str]:
+        access: dict[str, str] = {}
+        access.update(_as_dict(self.settings.get("kubernetes", {}).get("namespace_access")))
+        access.update(_as_dict(self.policy.get("namespace_boundary", {}).get("namespace_access")))
+        return {self.validate_namespace_name(key): str(value) for key, value in access.items()}
+
+    def namespace_access_mode(self, namespace: str) -> str:
+        return self.namespace_access.get(namespace, "read_write")
+
     def set_runtime_namespace(self, namespace: str) -> str:
+        namespace = self.assert_allowed_namespace(namespace)
+        self._runtime_namespace = namespace
+        return namespace
+
+    def assert_allowed_namespace(self, namespace: str | None) -> str:
+        namespace = self.validate_namespace_name(namespace)
+        allowed = self.allowed_namespaces
+        if namespace not in allowed:
+            allowed_text = ", ".join(allowed)
+            raise ValueError(
+                f"namespace '{namespace}' is not allowed. Allowed namespaces: {allowed_text}"
+            )
+        return namespace
+
+    @staticmethod
+    def validate_namespace_name(namespace: str | None) -> str:
         namespace = str(namespace or "").strip()
         if not re.fullmatch(r"[a-z0-9]([-a-z0-9]*[a-z0-9])?", namespace):
             raise ValueError("namespace must be a Kubernetes RFC1123 label")
         if len(namespace) > 63:
             raise ValueError("namespace must be 63 characters or fewer")
-        self._runtime_namespace = namespace
         return namespace
 
     @property
@@ -174,3 +224,23 @@ class AppConfig:
 
 
 config = AppConfig()
+
+
+def _split_csv(value: str) -> list[str]:
+    return [item.strip() for item in value.split(",") if item.strip()]
+
+
+def _as_list(value: Any) -> list[str]:
+    if value is None:
+        return []
+    if isinstance(value, str):
+        return _split_csv(value)
+    if isinstance(value, list):
+        return [str(item).strip() for item in value if str(item).strip()]
+    return [str(value).strip()]
+
+
+def _as_dict(value: Any) -> dict[str, str]:
+    if not isinstance(value, dict):
+        return {}
+    return {str(key).strip(): str(item).strip() for key, item in value.items() if str(key).strip()}

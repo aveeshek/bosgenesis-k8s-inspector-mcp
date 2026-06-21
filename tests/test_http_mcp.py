@@ -33,6 +33,8 @@ def test_namespace_can_be_switched_at_runtime():
         payload = response.json()
         assert payload["configured_namespace"] == "bosgenesis"
         assert payload["active_namespace"] == "signoz"
+        assert "signoz" in payload["allowed_namespaces"]
+        assert "agent-testing" in payload["allowed_namespaces"]
         assert payload["session_context_key"] == "namespace:signoz"
         assert payload["updated_by"] == "pytest"
         assert client.get(

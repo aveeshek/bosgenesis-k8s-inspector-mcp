@@ -2,12 +2,18 @@
 
 `bosgenesis-k8s-inspector-mcp` is a namespace-scoped Kubernetes MCP/REST service for BOS Genesis.
 
-It allows Codex, BOS AI Studio, n8n, LangGraph, or another controlled agent runtime to inspect and operate Kubernetes resources **only inside the configured namespace**.
+It allows Codex, BOS AI Studio, n8n, LangGraph, or another controlled agent runtime to inspect and operate Kubernetes resources **only inside configured allowlisted namespaces**.
 
 Default namespace:
 
 ```text
 bosgenesis
+```
+
+Default allowlist:
+
+```text
+bosgenesis, signoz, agent-testing
 ```
 
 The project is intentionally designed with:
@@ -133,7 +139,7 @@ flowchart LR
 
     K8S --> SA[ServiceAccount]
     SA --> RBAC[Namespace Role + RoleBinding]
-    RBAC --> NS[(active configured namespace only)]
+    RBAC --> NS[(allowlisted namespaces only)]
 
     OTEL --> SIGNOZ[SigNoz OTel Collector]
 ```
@@ -146,10 +152,11 @@ The service is protected by two layers.
 
 ### Kubernetes RBAC boundary
 
-The Kubernetes `Role` is namespace-scoped. The default deployment creates it
-inside the `bosgenesis` namespace. If the runtime namespace is switched to a
-different namespace such as `signoz`, the service account must also have an
-equivalent namespaced Role/RoleBinding there.
+Kubernetes RBAC remains namespace-scoped. The default deployment creates a
+write-capable Role/RoleBinding in `bosgenesis` and a read-only Role/RoleBinding
+in `signoz`. To add another namespace, create a namespace-local Role/RoleBinding
+for the inspector ServiceAccount and add that namespace to the application
+allowlist.
 
 The service account does **not** receive:
 
@@ -168,7 +175,7 @@ RBAC write access
 Before calling Kubernetes, the application validates:
 
 ```text
-metadata.namespace == active configured namespace
+metadata.namespace is in the configured allowlist
 resource is allowed
 kind is not cluster-scoped
 kind is not blocked
@@ -176,11 +183,11 @@ pod security settings are safe
 mutation request includes the configured API key
 ```
 
-The allowed application namespace defaults to `bosgenesis` and can be switched at
-runtime through `PUT /namespace` or the `k8s_set_namespace` MCP tool. This changes
-the single allowed namespace; it does not permit cross-namespace reads or writes.
-After switching to `signoz`, requests for `bosgenesis` are denied until the
-runtime namespace is switched back.
+The default application namespace is `bosgenesis`. Runtime calls may either pass
+`namespace` explicitly, or change the default with `PUT /namespace` or
+`k8s_set_namespace`. In both cases, the requested namespace must be present in
+`BOSGENESIS_ALLOWED_NAMESPACES` or the config/policy allowlist before the
+Kubernetes API is called.
 
 The default kustomize bundle also includes a read-only Role/RoleBinding in the
 `signoz` namespace for MoP discovery. This grants the inspector ServiceAccount
@@ -241,6 +248,7 @@ config/policy.yaml
 
 ```text
 BOSGENESIS_ALLOWED_NAMESPACE=bosgenesis
+BOSGENESIS_ALLOWED_NAMESPACES=bosgenesis,signoz,agent-testing
 BOSGENESIS_K8S_AUTH_MODE=in_cluster
 BOSGENESIS_KUBECONFIG_PATH=/config/kubeconfig
 BOSGENESIS_API_KEY=change-me-later
@@ -279,6 +287,7 @@ Edit `.env`:
 BOSGENESIS_K8S_AUTH_MODE=kubeconfig
 BOSGENESIS_KUBECONFIG_PATH=/your/path/to/kubeconfig
 BOSGENESIS_ALLOWED_NAMESPACE=bosgenesis
+BOSGENESIS_ALLOWED_NAMESPACES=bosgenesis,signoz,agent-testing
 ```
 
 Run REST API:
@@ -307,20 +316,20 @@ The REST API process also mounts the same MCP tool surface at `/mcp` for remote 
 ## 6. Build Docker image
 
 ```bash
-docker build -t bosgenesis-k8s-inspector-mcp:0.1.0 .
+docker build -t bosgenesis-k8s-inspector-mcp:0.1.1 .
 ```
 
 For containerd-based local Kubernetes:
 
 ```bash
-docker save bosgenesis-k8s-inspector-mcp:0.1.0 -o bosgenesis-k8s-inspector-mcp-0.1.0.tar
-sudo ctr -n k8s.io images import bosgenesis-k8s-inspector-mcp-0.1.0.tar
+docker save bosgenesis-k8s-inspector-mcp:0.1.1 -o bosgenesis-k8s-inspector-mcp-0.1.1.tar
+sudo ctr -n k8s.io images import bosgenesis-k8s-inspector-mcp-0.1.1.tar
 ```
 
 Or with nerdctl:
 
 ```bash
-nerdctl -n k8s.io build -t bosgenesis-k8s-inspector-mcp:0.1.0 .
+nerdctl -n k8s.io build -t bosgenesis-k8s-inspector-mcp:0.1.1 .
 ```
 
 ---

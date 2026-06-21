@@ -47,16 +47,24 @@ class NamespacePolicy:
         self.mutation_safety = self.policy.get("mutation_safety", {})
 
     def assert_namespace(self, namespace: str | None) -> str:
-        if not namespace:
-            raise PolicyDeniedError("Namespace is required.")
-        allowed_namespace = config.namespace
-        if namespace != allowed_namespace:
+        try:
+            namespace = config.validate_namespace_name(namespace)
+        except ValueError as exc:
+            raise PolicyDeniedError(str(exc)) from exc
+        allowed_namespaces = config.allowed_namespaces
+        if namespace not in allowed_namespaces:
+            allowed_text = ", ".join(allowed_namespaces)
             raise PolicyDeniedError(
-                f"Namespace '{namespace}' is not allowed. Only '{allowed_namespace}' is permitted."
+                f"Namespace '{namespace}' is not allowed. Allowed namespaces: {allowed_text}."
             )
         return namespace
 
-    def assert_resource_allowed(self, resource: str, verb: str) -> None:
+    def assert_resource_allowed(
+        self,
+        resource: str,
+        verb: str,
+        namespace: str | None = None,
+    ) -> None:
         resource = resource.lower()
         verb = verb.lower()
         if resource in self.blocked_resources or resource in self.blocked_subresources:
@@ -75,10 +83,23 @@ class NamespacePolicy:
             "restart",
             "bind",
         }:
+            if namespace is not None:
+                access_mode = config.namespace_access_mode(namespace)
+                if access_mode not in {"read_write", "write"}:
+                    raise PolicyDeniedError(
+                        f"Namespace '{namespace}' is configured as '{access_mode}' and does not allow writes."
+                    )
             if resource not in self.allowed_write_resources:
                 raise PolicyDeniedError(f"Write access to resource '{resource}' is not allowed.")
         else:
             raise PolicyDeniedError(f"Verb '{verb}' is not supported.")
+
+    def assert_namespace_write_allowed(self, namespace: str) -> None:
+        access_mode = config.namespace_access_mode(namespace)
+        if access_mode not in {"read_write", "write"}:
+            raise PolicyDeniedError(
+                f"Namespace '{namespace}' is configured as '{access_mode}' and does not allow writes."
+            )
 
     def validate_manifest(self, manifest: dict[str, Any]) -> tuple[str, str, str]:
         if not isinstance(manifest, dict):
@@ -97,7 +118,7 @@ class NamespacePolicy:
 
         self.assert_namespace(namespace)
         resource = kind_to_resource(kind)
-        self.assert_resource_allowed(resource, "apply")
+        self.assert_resource_allowed(resource, "apply", namespace=namespace)
 
         if self.mutation_safety.get("reject_cluster_scoped_objects", True):
             if kind in {
@@ -115,7 +136,7 @@ class NamespacePolicy:
 
     def validate_manifest_for_verb(self, manifest: dict[str, Any], verb: str) -> tuple[str, str, str]:
         kind, resource, name = self.validate_manifest(manifest)
-        self.assert_resource_allowed(resource, verb)
+        self.assert_resource_allowed(resource, verb, namespace=manifest["metadata"]["namespace"])
         return kind, resource, name
 
     def validate_patch_payload(self, patch: dict[str, Any]) -> None:
@@ -157,7 +178,7 @@ class NamespacePolicy:
         if kind not in DETAIL_READ_ALLOWED_KINDS:
             raise PolicyDeniedError(f"Kind '{kind}' is not allowed for detail reads.")
         resource = kind_to_resource(kind)
-        self.assert_resource_allowed(resource, "get")
+        self.assert_resource_allowed(resource, "get", namespace=namespace)
         return namespace, kind, name, resource
 
     def _validate_pod_security(self, manifest: dict[str, Any]) -> None:

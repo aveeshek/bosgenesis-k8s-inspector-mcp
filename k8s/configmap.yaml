@@ -10,6 +10,14 @@ data:
       environment: bosgenesis
     kubernetes:
       allowed_namespace: bosgenesis
+      allowed_namespaces:
+        - bosgenesis
+        - signoz
+        - agent-testing
+      namespace_access:
+        bosgenesis: read_write
+        signoz: read_only
+        agent-testing: read_write
       auth_mode: in_cluster
       kubeconfig_path: /config/kubeconfig
       kubeconfig_context: ""
@@ -35,6 +43,14 @@ data:
   policy.yaml: |
     namespace_boundary:
       allowed_namespace: bosgenesis
+      allowed_namespaces:
+        - bosgenesis
+        - signoz
+        - agent-testing
+      namespace_access:
+        bosgenesis: read_write
+        signoz: read_only
+        agent-testing: read_write
       reject_if_namespace_missing: true
       reject_if_namespace_differs: true
     blocked_resources:

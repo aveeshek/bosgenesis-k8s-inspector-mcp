@@ -44,14 +44,17 @@ class KubernetesOperations:
     def namespace(self) -> str:
         return config.namespace
 
-    def namespace_summary(self, actor: str = "codex") -> dict[str, Any]:
-        namespace = policy.assert_namespace(self.namespace)
+    def _namespace(self, namespace: str | None = None) -> str:
+        return policy.assert_namespace(namespace or self.namespace)
+
+    def namespace_summary(self, actor: str = "codex", namespace: str | None = None) -> dict[str, Any]:
+        namespace = self._namespace(namespace)
         with audit_logger.span("k8s.namespace_summary", {"k8s.namespace": namespace}):
-            pods = self.list_pods(actor=actor)
-            services = self.list_services(actor=actor)
-            deployments = self.list_deployments(actor=actor)
-            ingresses = self.list_ingresses(actor=actor)
-            pvcs = self.list_pvcs(actor=actor)
+            pods = self.list_pods(actor=actor, namespace=namespace)
+            services = self.list_services(actor=actor, namespace=namespace)
+            deployments = self.list_deployments(actor=actor, namespace=namespace)
+            ingresses = self.list_ingresses(actor=actor, namespace=namespace)
+            pvcs = self.list_pvcs(actor=actor, namespace=namespace)
             summary = {
                 "namespace": namespace,
                 "counts": {
@@ -76,16 +79,16 @@ class KubernetesOperations:
             )
             return summary
 
-    def list_pods(self, actor: str = "codex") -> list[dict[str, Any]]:
-        policy.assert_namespace(self.namespace)
+    def list_pods(self, actor: str = "codex", namespace: str | None = None) -> list[dict[str, Any]]:
+        namespace = self._namespace(namespace)
         policy.assert_resource_allowed("pods", "list")
-        with audit_logger.span("k8s.list_pods", {"k8s.namespace": self.namespace}):
-            items = core_v1().list_namespaced_pod(namespace=self.namespace).items
+        with audit_logger.span("k8s.list_pods", {"k8s.namespace": namespace}):
+            items = core_v1().list_namespaced_pod(namespace=namespace).items
             pods = [self._pod_summary(p) for p in items]
             audit_logger.emit(
                 action="list",
                 resource="pods",
-                namespace=self.namespace,
+                namespace=namespace,
                 status="success",
                 actor=actor,
                 tool="k8s_list_pods",
@@ -93,16 +96,16 @@ class KubernetesOperations:
             )
             return pods
 
-    def describe_pod(self, name: str, actor: str = "codex") -> dict[str, Any]:
-        policy.assert_namespace(self.namespace)
+    def describe_pod(self, name: str, actor: str = "codex", namespace: str | None = None) -> dict[str, Any]:
+        namespace = self._namespace(namespace)
         policy.assert_resource_allowed("pods", "get")
-        with audit_logger.span("k8s.describe_pod", {"k8s.namespace": self.namespace, "k8s.pod": name}):
-            pod = core_v1().read_namespaced_pod(name=name, namespace=self.namespace)
+        with audit_logger.span("k8s.describe_pod", {"k8s.namespace": namespace, "k8s.pod": name}):
+            pod = core_v1().read_namespaced_pod(name=name, namespace=namespace)
             result = api_client().sanitize_for_serialization(pod)
             audit_logger.emit(
                 action="get",
                 resource="pods",
-                namespace=self.namespace,
+                namespace=namespace,
                 name=name,
                 status="success",
                 actor=actor,
@@ -111,32 +114,38 @@ class KubernetesOperations:
             )
             return result
 
-    def pod_logs(self, name: str, tail_lines: int = 200, actor: str = "codex") -> dict[str, Any]:
-        policy.assert_namespace(self.namespace)
+    def pod_logs(
+        self,
+        name: str,
+        tail_lines: int = 200,
+        actor: str = "codex",
+        namespace: str | None = None,
+    ) -> dict[str, Any]:
+        namespace = self._namespace(namespace)
         policy.assert_resource_allowed("pods/log", "logs")
-        with audit_logger.span("k8s.pod_logs", {"k8s.namespace": self.namespace, "k8s.pod": name}):
+        with audit_logger.span("k8s.pod_logs", {"k8s.namespace": namespace, "k8s.pod": name}):
             logs = core_v1().read_namespaced_pod_log(
                 name=name,
-                namespace=self.namespace,
+                namespace=namespace,
                 tail_lines=min(max(tail_lines, 1), 1000),
                 timestamps=True,
             )
             audit_logger.emit(
                 action="logs",
                 resource="pods/log",
-                namespace=self.namespace,
+                namespace=namespace,
                 name=name,
                 status="success",
                 actor=actor,
                 tool="k8s_get_pod_logs",
                 response_summary={"tail_lines": tail_lines, "bytes": len(logs.encode("utf-8"))},
             )
-            return {"namespace": self.namespace, "pod": name, "tail_lines": tail_lines, "logs": logs}
+            return {"namespace": namespace, "pod": name, "tail_lines": tail_lines, "logs": logs}
 
-    def list_services(self, actor: str = "codex") -> list[dict[str, Any]]:
-        policy.assert_namespace(self.namespace)
+    def list_services(self, actor: str = "codex", namespace: str | None = None) -> list[dict[str, Any]]:
+        namespace = self._namespace(namespace)
         policy.assert_resource_allowed("services", "list")
-        items = core_v1().list_namespaced_service(namespace=self.namespace).items
+        items = core_v1().list_namespaced_service(namespace=namespace).items
         result = [
             {
                 "name": s.metadata.name,
@@ -149,18 +158,18 @@ class KubernetesOperations:
             }
             for s in items
         ]
-        audit_logger.emit(action="list", resource="services", namespace=self.namespace, status="success", actor=actor, tool="k8s_list_services", response_summary={"count": len(result)})
+        audit_logger.emit(action="list", resource="services", namespace=namespace, status="success", actor=actor, tool="k8s_list_services", response_summary={"count": len(result)})
         return result
 
-    def list_configmaps(self, actor: str = "codex") -> list[dict[str, Any]]:
-        policy.assert_namespace(self.namespace)
+    def list_configmaps(self, actor: str = "codex", namespace: str | None = None) -> list[dict[str, Any]]:
+        namespace = self._namespace(namespace)
         policy.assert_resource_allowed("configmaps", "list")
-        items = core_v1().list_namespaced_config_map(namespace=self.namespace).items
+        items = core_v1().list_namespaced_config_map(namespace=namespace).items
         result = [self._configmap_summary(configmap) for configmap in items]
         audit_logger.emit(
             action="list",
             resource="configmaps",
-            namespace=self.namespace,
+            namespace=namespace,
             status="success",
             actor=actor,
             tool="k8s_list_configmaps",
@@ -173,14 +182,15 @@ class KubernetesOperations:
         name: str,
         include_data: bool = False,
         actor: str = "codex",
+        namespace: str | None = None,
     ) -> dict[str, Any]:
-        policy.assert_namespace(self.namespace)
+        namespace = self._namespace(namespace)
         policy.assert_resource_allowed("configmaps", "get")
         with audit_logger.span(
             "k8s.get_configmap",
-            {"k8s.namespace": self.namespace, "k8s.configmap": name},
+            {"k8s.namespace": namespace, "k8s.configmap": name},
         ):
-            configmap = core_v1().read_namespaced_config_map(name=name, namespace=self.namespace)
+            configmap = core_v1().read_namespaced_config_map(name=name, namespace=namespace)
             result = self._configmap_summary(configmap)
             if include_data:
                 result["data"] = configmap.data or {}
@@ -188,7 +198,7 @@ class KubernetesOperations:
             audit_logger.emit(
                 action="get",
                 resource="configmaps",
-                namespace=self.namespace,
+                namespace=namespace,
                 name=name,
                 status="success",
                 actor=actor,
@@ -316,15 +326,15 @@ class KubernetesOperations:
             )
             raise KubernetesOperationError(str(exc)) from exc
 
-    def list_pvcs(self, actor: str = "codex") -> list[dict[str, Any]]:
-        policy.assert_namespace(self.namespace)
+    def list_pvcs(self, actor: str = "codex", namespace: str | None = None) -> list[dict[str, Any]]:
+        namespace = self._namespace(namespace)
         policy.assert_resource_allowed("persistentvolumeclaims", "list")
-        items = core_v1().list_namespaced_persistent_volume_claim(namespace=self.namespace).items
+        items = core_v1().list_namespaced_persistent_volume_claim(namespace=namespace).items
         result = [self._pvc_summary(pvc) for pvc in items]
         audit_logger.emit(
             action="list",
             resource="persistentvolumeclaims",
-            namespace=self.namespace,
+            namespace=namespace,
             status="success",
             actor=actor,
             tool="k8s_list_pvcs",
@@ -332,22 +342,22 @@ class KubernetesOperations:
         )
         return result
 
-    def describe_pvc(self, name: str, actor: str = "codex") -> dict[str, Any]:
-        policy.assert_namespace(self.namespace)
+    def describe_pvc(self, name: str, actor: str = "codex", namespace: str | None = None) -> dict[str, Any]:
+        namespace = self._namespace(namespace)
         policy.assert_resource_allowed("persistentvolumeclaims", "get")
         with audit_logger.span(
             "k8s.describe_pvc",
-            {"k8s.namespace": self.namespace, "k8s.pvc": name},
+            {"k8s.namespace": namespace, "k8s.pvc": name},
         ):
             pvc = core_v1().read_namespaced_persistent_volume_claim(
                 name=name,
-                namespace=self.namespace,
+                namespace=namespace,
             )
             result = api_client().sanitize_for_serialization(pvc)
             audit_logger.emit(
                 action="get",
                 resource="persistentvolumeclaims",
-                namespace=self.namespace,
+                namespace=namespace,
                 name=name,
                 status="success",
                 actor=actor,
@@ -359,10 +369,10 @@ class KubernetesOperations:
             )
             return result
 
-    def list_deployments(self, actor: str = "codex") -> list[dict[str, Any]]:
-        policy.assert_namespace(self.namespace)
+    def list_deployments(self, actor: str = "codex", namespace: str | None = None) -> list[dict[str, Any]]:
+        namespace = self._namespace(namespace)
         policy.assert_resource_allowed("deployments", "list")
-        items = apps_v1().list_namespaced_deployment(namespace=self.namespace).items
+        items = apps_v1().list_namespaced_deployment(namespace=namespace).items
         result = [
             {
                 "name": d.metadata.name,
@@ -374,13 +384,13 @@ class KubernetesOperations:
             }
             for d in items
         ]
-        audit_logger.emit(action="list", resource="deployments", namespace=self.namespace, status="success", actor=actor, tool="k8s_list_deployments", response_summary={"count": len(result)})
+        audit_logger.emit(action="list", resource="deployments", namespace=namespace, status="success", actor=actor, tool="k8s_list_deployments", response_summary={"count": len(result)})
         return result
 
-    def list_statefulsets(self, actor: str = "codex") -> list[dict[str, Any]]:
-        policy.assert_namespace(self.namespace)
+    def list_statefulsets(self, actor: str = "codex", namespace: str | None = None) -> list[dict[str, Any]]:
+        namespace = self._namespace(namespace)
         policy.assert_resource_allowed("statefulsets", "list")
-        items = apps_v1().list_namespaced_stateful_set(namespace=self.namespace).items
+        items = apps_v1().list_namespaced_stateful_set(namespace=namespace).items
         result = [
             {
                 "name": s.metadata.name,
@@ -390,13 +400,13 @@ class KubernetesOperations:
             }
             for s in items
         ]
-        audit_logger.emit(action="list", resource="statefulsets", namespace=self.namespace, status="success", actor=actor, tool="k8s_list_statefulsets", response_summary={"count": len(result)})
+        audit_logger.emit(action="list", resource="statefulsets", namespace=namespace, status="success", actor=actor, tool="k8s_list_statefulsets", response_summary={"count": len(result)})
         return result
 
-    def list_ingresses(self, actor: str = "codex") -> list[dict[str, Any]]:
-        policy.assert_namespace(self.namespace)
+    def list_ingresses(self, actor: str = "codex", namespace: str | None = None) -> list[dict[str, Any]]:
+        namespace = self._namespace(namespace)
         policy.assert_resource_allowed("ingresses", "list")
-        items = networking_v1().list_namespaced_ingress(namespace=self.namespace).items
+        items = networking_v1().list_namespaced_ingress(namespace=namespace).items
         result = []
         for ing in items:
             rules = []
@@ -407,13 +417,13 @@ class KubernetesOperations:
                         paths.append({"path": p.path, "service": p.backend.service.name if p.backend.service else None, "port": p.backend.service.port.number if p.backend.service and p.backend.service.port else None})
                 rules.append({"host": r.host, "paths": paths})
             result.append({"name": ing.metadata.name, "class": ing.spec.ingress_class_name, "rules": rules})
-        audit_logger.emit(action="list", resource="ingresses", namespace=self.namespace, status="success", actor=actor, tool="k8s_list_ingresses", response_summary={"count": len(result)})
+        audit_logger.emit(action="list", resource="ingresses", namespace=namespace, status="success", actor=actor, tool="k8s_list_ingresses", response_summary={"count": len(result)})
         return result
 
-    def list_events(self, actor: str = "codex") -> list[dict[str, Any]]:
-        policy.assert_namespace(self.namespace)
+    def list_events(self, actor: str = "codex", namespace: str | None = None) -> list[dict[str, Any]]:
+        namespace = self._namespace(namespace)
         policy.assert_resource_allowed("events", "list")
-        items = core_v1().list_namespaced_event(namespace=self.namespace).items
+        items = core_v1().list_namespaced_event(namespace=namespace).items
         result = [
             {
                 "type": e.type,
@@ -426,7 +436,7 @@ class KubernetesOperations:
             }
             for e in items
         ]
-        audit_logger.emit(action="list", resource="events", namespace=self.namespace, status="success", actor=actor, tool="k8s_list_events", response_summary={"count": len(result)})
+        audit_logger.emit(action="list", resource="events", namespace=namespace, status="success", actor=actor, tool="k8s_list_events", response_summary={"count": len(result)})
         return result
 
     def apply_manifest(self, manifest: dict[str, Any], dry_run: bool = False, actor: str = "codex", correlation_id: str | None = None, tool: str = "k8s_apply_manifest") -> OperationResponse:
@@ -623,7 +633,7 @@ class KubernetesOperations:
 
     def delete_resource(self, resource: str, name: str, namespace: str, dry_run: bool = False, actor: str = "codex", correlation_id: str | None = None, tool: str = "k8s_delete_resource") -> OperationResponse:
         policy.assert_namespace(namespace)
-        policy.assert_resource_allowed(resource, "delete")
+        policy.assert_resource_allowed(resource, "delete", namespace=namespace)
         audit_start = audit_logger.emit(action="delete", resource=resource, namespace=namespace, name=name, status="started", actor=actor, request={"dry_run": dry_run}, correlation_id=correlation_id, tool=tool, dry_run=dry_run, decision="allowed")
         try:
             body = client.V1DeleteOptions()
@@ -670,7 +680,7 @@ class KubernetesOperations:
         tool: str = "k8s_delete_collection",
     ) -> OperationResponse:
         policy.assert_namespace(namespace)
-        policy.assert_resource_allowed(resource, "deletecollection")
+        policy.assert_resource_allowed(resource, "deletecollection", namespace=namespace)
         if not label_selector and not field_selector:
             raise PolicyDeniedError("deletecollection requires a label_selector or field_selector.")
 
@@ -744,7 +754,7 @@ class KubernetesOperations:
 
     def patch_resource(self, resource: str, name: str, namespace: str, patch: dict[str, Any], dry_run: bool = False, actor: str = "codex", correlation_id: str | None = None, tool: str = "k8s_patch_resource") -> OperationResponse:
         policy.assert_namespace(namespace)
-        policy.assert_resource_allowed(resource, "patch")
+        policy.assert_resource_allowed(resource, "patch", namespace=namespace)
         policy.validate_patch_payload(patch)
         api_version, kind = self._resource_def(resource)
         audit_start = audit_logger.emit(action="patch", resource=resource, namespace=namespace, name=name, status="started", actor=actor, request={"dry_run": dry_run, "patch_keys": list(patch.keys())}, correlation_id=correlation_id, tool=tool, dry_run=dry_run, decision="allowed")
@@ -772,7 +782,7 @@ class KubernetesOperations:
         tool: str = "k8s_bind_pod",
     ) -> OperationResponse:
         policy.assert_namespace(namespace)
-        policy.assert_resource_allowed("pods", "bind")
+        policy.assert_resource_allowed("pods", "bind", namespace=namespace)
         audit_start = audit_logger.emit(
             action="bind",
             resource="pods/binding",
@@ -857,6 +867,7 @@ class KubernetesOperations:
     ) -> OperationResponse:
         self._prune_expired_secret_sessions()
         namespace = policy.assert_namespace(namespace or self.namespace)
+        policy.assert_namespace_write_allowed(namespace)
         secret_name = self._assert_ephemeral_secret_name(name)
         if not string_data and not data:
             raise PolicyDeniedError("Ephemeral Secret creation requires string_data or data.")
@@ -976,6 +987,7 @@ class KubernetesOperations:
     ) -> OperationResponse:
         self._prune_expired_secret_sessions()
         namespace = policy.assert_namespace(namespace or self.namespace)
+        policy.assert_namespace_write_allowed(namespace)
         secret_name = self._assert_ephemeral_secret_name(name)
         record = _owned_secret_sessions.get(correlation_id)
         if not record or record.get("name") != secret_name or record.get("namespace") != namespace:
@@ -1091,6 +1103,7 @@ class KubernetesOperations:
         self,
         name: str,
         patch: dict[str, Any],
+        namespace: str | None = None,
         dry_run: bool = False,
         actor: str = "codex",
         correlation_id: str | None = None,
@@ -1098,7 +1111,7 @@ class KubernetesOperations:
         return self.patch_resource(
             resource="persistentvolumeclaims",
             name=name,
-            namespace=self.namespace,
+            namespace=namespace or self.namespace,
             patch=patch,
             dry_run=dry_run,
             actor=actor,
@@ -1109,6 +1122,7 @@ class KubernetesOperations:
     def delete_pvc(
         self,
         name: str,
+        namespace: str | None = None,
         dry_run: bool = False,
         actor: str = "codex",
         correlation_id: str | None = None,
@@ -1116,7 +1130,7 @@ class KubernetesOperations:
         return self.delete_resource(
             resource="persistentvolumeclaims",
             name=name,
-            namespace=self.namespace,
+            namespace=namespace or self.namespace,
             dry_run=dry_run,
             actor=actor,
             correlation_id=correlation_id,
@@ -1127,13 +1141,14 @@ class KubernetesOperations:
         self,
         label_selector: str | None = None,
         field_selector: str | None = None,
+        namespace: str | None = None,
         dry_run: bool = False,
         actor: str = "codex",
         correlation_id: str | None = None,
     ) -> OperationResponse:
         return self.delete_collection(
             resource="persistentvolumeclaims",
-            namespace=self.namespace,
+            namespace=namespace or self.namespace,
             label_selector=label_selector,
             field_selector=field_selector,
             dry_run=dry_run,

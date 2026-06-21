@@ -20,10 +20,25 @@ def test_runtime_namespace_switch_changes_policy_boundary():
         config.set_runtime_namespace("signoz")
 
         assert policy.assert_namespace("signoz") == "signoz"
-        with pytest.raises(PolicyDeniedError, match="Only 'signoz' is permitted"):
-            policy.assert_namespace("bosgenesis")
+        assert policy.assert_namespace("bosgenesis") == "bosgenesis"
     finally:
         config._runtime_namespace = original
+
+
+def test_reject_namespace_outside_allowlist():
+    with pytest.raises(PolicyDeniedError, match="Allowed namespaces"):
+        policy.assert_namespace("kube-system")
+
+
+def test_read_only_namespace_blocks_writes():
+    policy.assert_resource_allowed("pods", "list", namespace="signoz")
+
+    with pytest.raises(PolicyDeniedError, match="does not allow writes"):
+        policy.assert_resource_allowed("deployments", "patch", namespace="signoz")
+
+
+def test_agent_testing_namespace_allows_target_writes():
+    policy.assert_resource_allowed("deployments", "patch", namespace="agent-testing")
 
 
 def test_reject_secret_manifest():

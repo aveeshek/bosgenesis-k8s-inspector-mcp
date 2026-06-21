@@ -34,3 +34,22 @@ def test_kubeconfig_supports_local_alias_and_repo_relative_paths(monkeypatch):
     monkeypatch.setenv("KUBECONFIG", "./kube/config")
 
     assert AppConfig().kubeconfig_path == str(PROJECT_ROOT / "kube" / "config")
+
+
+def test_allowed_namespaces_support_env_allowlist(monkeypatch):
+    monkeypatch.setenv("BOSGENESIS_ALLOWED_NAMESPACE", "bosgenesis")
+    monkeypatch.setenv("BOSGENESIS_ALLOWED_NAMESPACES", "bosgenesis,signoz,agent-testing")
+
+    cfg = AppConfig()
+
+    assert cfg.allowed_namespaces[:3] == ["bosgenesis", "signoz", "agent-testing"]
+    assert cfg.assert_allowed_namespace("signoz") == "signoz"
+    assert cfg.assert_allowed_namespace("agent-testing") == "agent-testing"
+
+
+def test_namespace_access_modes_are_config_driven():
+    cfg = AppConfig()
+
+    assert cfg.namespace_access_mode("bosgenesis") == "read_write"
+    assert cfg.namespace_access_mode("signoz") == "read_only"
+    assert cfg.namespace_access_mode("agent-testing") == "read_write"

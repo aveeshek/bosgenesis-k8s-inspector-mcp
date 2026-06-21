@@ -6,6 +6,8 @@ resources:
   - rolebinding.yaml
   - role-signoz-readonly.yaml
   - rolebinding-signoz-readonly.yaml
+  - role-agent-testing.yaml
+  - rolebinding-agent-testing.yaml
   - configmap.yaml
   - deployment.yaml
   - service.yaml

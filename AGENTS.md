@@ -4,12 +4,12 @@
 
 This repository implements `bosgenesis-k8s-inspector-mcp`, a namespace-scoped Kubernetes MCP server for the BOS Genesis platform.
 
-The MCP server allows Codex and other agents to inspect and operate Kubernetes resources only inside the `bosgenesis` namespace.
+The MCP server allows Codex and other agents to inspect and operate Kubernetes resources only inside configured allowlisted namespaces.
 
 ## Hard safety rules
 
-- Never access Kubernetes resources outside the configured namespace.
-- The only allowed namespace is `bosgenesis` unless explicitly changed in config and policy.
+- Never access Kubernetes resources outside the configured namespace allowlist.
+- The default namespace is `bosgenesis`; additional namespaces must be explicitly configured in policy and RBAC.
 - Never request or use cluster-admin permissions.
 - Never create ClusterRole, ClusterRoleBinding, Namespace, Node, PersistentVolume, or CRD resources.
 - Never read, list, create, update, patch, or delete Kubernetes Secrets.

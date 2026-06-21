@@ -41,7 +41,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title="BOS Genesis Kubernetes Inspector MCP API",
-    version="0.1.0",
+    version="0.1.1",
     description="Namespace-scoped Kubernetes inspector/operator API for BOS Genesis.",
     lifespan=lifespan,
 )
@@ -89,6 +89,7 @@ def health() -> dict:
         "service": "bosgenesis-k8s-inspector-mcp",
         "namespace": config.namespace,
         "configured_namespace": config.configured_namespace,
+        "allowed_namespaces": config.allowed_namespaces,
         "mode": "api",
         "k8s_auth_mode": config.k8s_auth_mode,
         "k8s_auth": auth_diagnostics(),
@@ -102,6 +103,7 @@ def get_namespace() -> dict:
     return {
         "configured_namespace": config.configured_namespace,
         "active_namespace": config.namespace,
+        "allowed_namespaces": config.allowed_namespaces,
         "session_context_key": f"namespace:{config.namespace}",
     }
 
@@ -113,6 +115,7 @@ def set_namespace(req: NamespaceSwitchRequest) -> dict:
         return {
             "configured_namespace": config.configured_namespace,
             "active_namespace": namespace,
+            "allowed_namespaces": config.allowed_namespaces,
             "session_context_key": f"namespace:{namespace}",
             "updated_by": req.actor,
         }
@@ -121,49 +124,70 @@ def set_namespace(req: NamespaceSwitchRequest) -> dict:
 
 
 @app.get("/namespace/summary", dependencies=[Depends(require_api_key)])
-def namespace_summary(actor: str = Query(default="codex")) -> dict:
+def namespace_summary(
+    actor: str = Query(default="codex"),
+    namespace: str | None = Query(default=None),
+) -> dict:
     try:
-        return ops.namespace_summary(actor=actor)
+        return ops.namespace_summary(actor=actor, namespace=namespace)
     except Exception as exc:
         raise handle_error(exc)
 
 
 @app.get("/pods", dependencies=[Depends(require_api_key)])
-def list_pods(actor: str = Query(default="codex")) -> list[dict]:
+def list_pods(
+    actor: str = Query(default="codex"),
+    namespace: str | None = Query(default=None),
+) -> list[dict]:
     try:
-        return ops.list_pods(actor=actor)
+        return ops.list_pods(actor=actor, namespace=namespace)
     except Exception as exc:
         raise handle_error(exc)
 
 
 @app.get("/pods/{pod_name}", dependencies=[Depends(require_api_key)])
-def describe_pod(pod_name: str, actor: str = Query(default="codex")) -> dict:
+def describe_pod(
+    pod_name: str,
+    actor: str = Query(default="codex"),
+    namespace: str | None = Query(default=None),
+) -> dict:
     try:
-        return ops.describe_pod(pod_name, actor=actor)
+        return ops.describe_pod(pod_name, actor=actor, namespace=namespace)
     except Exception as exc:
         raise handle_error(exc)
 
 
 @app.get("/pods/{pod_name}/logs", dependencies=[Depends(require_api_key)])
-def pod_logs(pod_name: str, tail_lines: int = Query(default=200, ge=1, le=1000), actor: str = Query(default="codex")) -> dict:
+def pod_logs(
+    pod_name: str,
+    tail_lines: int = Query(default=200, ge=1, le=1000),
+    actor: str = Query(default="codex"),
+    namespace: str | None = Query(default=None),
+) -> dict:
     try:
-        return ops.pod_logs(pod_name, tail_lines=tail_lines, actor=actor)
+        return ops.pod_logs(pod_name, tail_lines=tail_lines, actor=actor, namespace=namespace)
     except Exception as exc:
         raise handle_error(exc)
 
 
 @app.get("/services", dependencies=[Depends(require_api_key)])
-def list_services(actor: str = Query(default="codex")) -> list[dict]:
+def list_services(
+    actor: str = Query(default="codex"),
+    namespace: str | None = Query(default=None),
+) -> list[dict]:
     try:
-        return ops.list_services(actor=actor)
+        return ops.list_services(actor=actor, namespace=namespace)
     except Exception as exc:
         raise handle_error(exc)
 
 
 @app.get("/configmaps", dependencies=[Depends(require_api_key)])
-def list_configmaps(actor: str = Query(default="codex")) -> list[dict]:
+def list_configmaps(
+    actor: str = Query(default="codex"),
+    namespace: str | None = Query(default=None),
+) -> list[dict]:
     try:
-        return ops.list_configmaps(actor=actor)
+        return ops.list_configmaps(actor=actor, namespace=namespace)
     except Exception as exc:
         raise handle_error(exc)
 
@@ -173,9 +197,15 @@ def get_configmap(
     configmap_name: str,
     include_data: bool = Query(default=False),
     actor: str = Query(default="codex"),
+    namespace: str | None = Query(default=None),
 ) -> dict:
     try:
-        return ops.get_configmap(configmap_name, include_data=include_data, actor=actor)
+        return ops.get_configmap(
+            configmap_name,
+            include_data=include_data,
+            actor=actor,
+            namespace=namespace,
+        )
     except Exception as exc:
         raise handle_error(exc)
 
@@ -195,49 +225,68 @@ def get_resource(req: GetResourceRequest) -> dict:
 
 
 @app.get("/pvcs", dependencies=[Depends(require_api_key)])
-def list_pvcs(actor: str = Query(default="codex")) -> list[dict]:
+def list_pvcs(
+    actor: str = Query(default="codex"),
+    namespace: str | None = Query(default=None),
+) -> list[dict]:
     try:
-        return ops.list_pvcs(actor=actor)
+        return ops.list_pvcs(actor=actor, namespace=namespace)
     except Exception as exc:
         raise handle_error(exc)
 
 
 @app.get("/pvcs/{pvc_name}", dependencies=[Depends(require_api_key)])
-def describe_pvc(pvc_name: str, actor: str = Query(default="codex")) -> dict:
+def describe_pvc(
+    pvc_name: str,
+    actor: str = Query(default="codex"),
+    namespace: str | None = Query(default=None),
+) -> dict:
     try:
-        return ops.describe_pvc(pvc_name, actor=actor)
+        return ops.describe_pvc(pvc_name, actor=actor, namespace=namespace)
     except Exception as exc:
         raise handle_error(exc)
 
 
 @app.get("/deployments", dependencies=[Depends(require_api_key)])
-def list_deployments(actor: str = Query(default="codex")) -> list[dict]:
+def list_deployments(
+    actor: str = Query(default="codex"),
+    namespace: str | None = Query(default=None),
+) -> list[dict]:
     try:
-        return ops.list_deployments(actor=actor)
+        return ops.list_deployments(actor=actor, namespace=namespace)
     except Exception as exc:
         raise handle_error(exc)
 
 
 @app.get("/statefulsets", dependencies=[Depends(require_api_key)])
-def list_statefulsets(actor: str = Query(default="codex")) -> list[dict]:
+def list_statefulsets(
+    actor: str = Query(default="codex"),
+    namespace: str | None = Query(default=None),
+) -> list[dict]:
     try:
-        return ops.list_statefulsets(actor=actor)
+        return ops.list_statefulsets(actor=actor, namespace=namespace)
     except Exception as exc:
         raise handle_error(exc)
 
 
 @app.get("/ingresses", dependencies=[Depends(require_api_key)])
-def list_ingresses(actor: str = Query(default="codex")) -> list[dict]:
+def list_ingresses(
+    actor: str = Query(default="codex"),
+    namespace: str | None = Query(default=None),
+) -> list[dict]:
     try:
-        return ops.list_ingresses(actor=actor)
+        return ops.list_ingresses(actor=actor, namespace=namespace)
     except Exception as exc:
         raise handle_error(exc)
 
 
 @app.get("/events", dependencies=[Depends(require_api_key)])
-def list_events(actor: str = Query(default="codex")) -> list[dict]:
+def list_events(
+    actor: str = Query(default="codex"),
+    namespace: str | None = Query(default=None),
+) -> list[dict]:
     try:
-        return ops.list_events(actor=actor)
+        return ops.list_events(actor=actor, namespace=namespace)
     except Exception as exc:
         raise handle_error(exc)
 
@@ -361,10 +410,12 @@ def delete_pvc(
     pvc_name: str,
     dry_run: bool = Query(default=False),
     actor: str = Query(default="codex"),
+    namespace: str | None = Query(default=None),
 ) -> dict:
     try:
         return ops.delete_pvc(
             name=pvc_name,
+            namespace=namespace,
             dry_run=dry_run,
             actor=actor,
         ).model_dump()
@@ -394,6 +445,7 @@ def delete_pvc_collection(req: PvcDeleteCollectionRequest) -> dict:
         return ops.delete_pvc_collection(
             label_selector=req.label_selector,
             field_selector=req.field_selector,
+            namespace=req.namespace,
             dry_run=req.dry_run,
             actor=req.actor,
             correlation_id=req.correlation_id,
@@ -424,6 +476,7 @@ def patch_pvc(pvc_name: str, req: PvcPatchRequest) -> dict:
         return ops.patch_pvc(
             name=pvc_name,
             patch=req.patch,
+            namespace=req.namespace,
             dry_run=req.dry_run,
             actor=req.actor,
             correlation_id=req.correlation_id,

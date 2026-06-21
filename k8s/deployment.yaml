@@ -26,7 +26,7 @@ spec:
           type: RuntimeDefault
       containers:
         - name: app
-          image: bosgenesis-k8s-inspector-mcp:0.1.0
+          image: bosgenesis-k8s-inspector-mcp:0.1.1
           imagePullPolicy: IfNotPresent
           ports:
             - name: http
@@ -36,6 +36,8 @@ spec:
               value: "api"
             - name: BOSGENESIS_ALLOWED_NAMESPACE
               value: "bosgenesis"
+            - name: BOSGENESIS_ALLOWED_NAMESPACES
+              value: "bosgenesis,signoz,agent-testing"
             - name: BOSGENESIS_K8S_AUTH_MODE
               value: "in_cluster"
             - name: BOSGENESIS_SETTINGS_FILE

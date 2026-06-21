@@ -39,7 +39,7 @@ def test_list_pvcs_returns_namespace_scoped_summaries(monkeypatch):
         lambda: fake_core,
     )
 
-    result = ops.list_pvcs(actor="test")
+    result = ops.list_pvcs(actor="test", namespace="bosgenesis")
 
     assert result == [
         {
@@ -93,6 +93,35 @@ def test_list_configmaps_returns_key_summaries_without_values(monkeypatch):
         }
     ]
     assert "not-returned" not in str(result)
+
+
+def test_list_pods_uses_per_call_namespace(monkeypatch):
+    pod = SimpleNamespace(
+        metadata=SimpleNamespace(name="signoz-0", namespace="signoz"),
+        status=SimpleNamespace(
+            phase="Running",
+            container_statuses=[],
+            pod_ip="10.0.0.1",
+            start_time=None,
+        ),
+        spec=SimpleNamespace(node_name="node-1", containers=[]),
+    )
+    seen = {}
+
+    def list_namespaced_pod(namespace):
+        seen["namespace"] = namespace
+        return SimpleNamespace(items=[pod])
+
+    fake_core = SimpleNamespace(list_namespaced_pod=list_namespaced_pod)
+    monkeypatch.setattr(
+        "bosgenesis_k8s_inspector_mcp.operations.core_v1",
+        lambda: fake_core,
+    )
+
+    result = ops.list_pods(actor="test", namespace="signoz")
+
+    assert seen["namespace"] == "signoz"
+    assert result[0]["namespace"] == "signoz"
 
 
 def test_get_configmap_returns_data_only_when_requested(monkeypatch):

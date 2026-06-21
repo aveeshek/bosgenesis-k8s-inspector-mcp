@@ -44,7 +44,7 @@ class ManifestMutationRequest(ApplyManifestRequest):
 class DeleteResourceRequest(BaseModel):
     resource: WritableResource
     name: str
-    namespace: str = Field(default="bosgenesis")
+    namespace: str | None = None
     dry_run: bool = False
     actor: str = "codex"
     correlation_id: str | None = None
@@ -52,7 +52,7 @@ class DeleteResourceRequest(BaseModel):
 
 class DeleteCollectionRequest(BaseModel):
     resource: WritableResource
-    namespace: str = Field(default="bosgenesis")
+    namespace: str | None = None
     label_selector: str | None = None
     field_selector: str | None = None
     dry_run: bool = False
@@ -63,6 +63,7 @@ class DeleteCollectionRequest(BaseModel):
 class PvcDeleteCollectionRequest(BaseModel):
     label_selector: str | None = None
     field_selector: str | None = None
+    namespace: str | None = None
     dry_run: bool = False
     actor: str = "codex"
     correlation_id: str | None = None
@@ -72,7 +73,7 @@ class PatchResourceRequest(BaseModel):
     resource: WritableResource
     name: str
     patch: dict[str, Any]
-    namespace: str = Field(default="bosgenesis")
+    namespace: str | None = None
     dry_run: bool = False
     actor: str = "codex"
     correlation_id: str | None = None
@@ -80,6 +81,7 @@ class PatchResourceRequest(BaseModel):
 
 class PvcPatchRequest(BaseModel):
     patch: dict[str, Any]
+    namespace: str | None = None
     dry_run: bool = False
     actor: str = "codex"
     correlation_id: str | None = None
@@ -103,7 +105,7 @@ class NamespaceSwitchRequest(BaseModel):
 class BindPodRequest(BaseModel):
     pod_name: str
     node_name: str
-    namespace: str = Field(default="bosgenesis")
+    namespace: str | None = None
     dry_run: bool = False
     actor: str = "codex"
     correlation_id: str | None = None
@@ -112,7 +114,7 @@ class BindPodRequest(BaseModel):
 class ScaleDeploymentRequest(BaseModel):
     name: str
     replicas: int = Field(ge=0, le=20)
-    namespace: str = Field(default="bosgenesis")
+    namespace: str | None = None
     dry_run: bool = False
     actor: str = "codex"
     correlation_id: str | None = None
@@ -123,7 +125,7 @@ class EphemeralSecretCreateRequest(BaseModel):
     string_data: dict[str, str] = Field(default_factory=dict)
     data: dict[str, str] = Field(default_factory=dict)
     secret_type: str = "Opaque"
-    namespace: str = Field(default="bosgenesis")
+    namespace: str | None = None
     ttl_seconds: int = Field(default=3600, ge=60, le=86400)
     dry_run: bool = False
     actor: str = "codex"
@@ -133,7 +135,7 @@ class EphemeralSecretCreateRequest(BaseModel):
 class EphemeralSecretDeleteRequest(BaseModel):
     name: str
     correlation_id: str
-    namespace: str = Field(default="bosgenesis")
+    namespace: str | None = None
     dry_run: bool = False
     actor: str = "codex"
 

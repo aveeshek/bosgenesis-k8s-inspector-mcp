@@ -1,5 +1,13 @@
 namespace_boundary:
   allowed_namespace: bosgenesis
+  allowed_namespaces:
+    - bosgenesis
+    - signoz
+    - agent-testing
+  namespace_access:
+    bosgenesis: read_write
+    signoz: read_only
+    agent-testing: read_write
   reject_if_namespace_missing: true
   reject_if_namespace_differs: true
 

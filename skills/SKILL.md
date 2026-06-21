@@ -9,9 +9,10 @@ Use the `bosgenesis_k8s` remote MCP server for Kubernetes inspection and mutatio
 
 ## Rules
 
-- Operate only inside the `bosgenesis` namespace.
+- Operate only inside namespaces returned by `k8s_get_namespace.allowed_namespaces`.
+- Pass the intended `namespace` argument on each MCP call when it is available.
 - Prefer `bosgenesis_k8s` MCP tools over raw `kubectl`.
-- Never inspect or modify resources outside `bosgenesis`.
+- Never inspect or modify resources outside the configured namespace allowlist.
 - Never use cluster-admin access.
 - Never read, list, describe, patch, update, or generically apply Kubernetes Secrets.
 - The only Secret exception is the dedicated ephemeral Secret workflow: create/delete MCP-owned `bosgenesis-mcp-*` Secrets without reading or returning values.
@@ -55,6 +56,7 @@ Check phase, readiness, restart count, image, node, recent events, and relevant 
 
 Use:
 
+- `k8s_get_resource`
 - `k8s_list_deployments`
 - `k8s_list_statefulsets`
 - `k8s_describe_pod`
@@ -86,7 +88,7 @@ List ConfigMaps first to inspect names, labels, annotations, and key names. Use 
 
 ### Apply Manifest
 
-1. Validate that `metadata.namespace` is `bosgenesis`.
+1. Validate that `metadata.namespace` is one of the allowed namespaces.
 2. Refuse cluster-scoped resources, secrets, RBAC resources, service accounts, privileged pods, host networking, and hostPath volumes.
 3. Use `k8s_apply_manifest` with `dry_run=true`.
 4. Explain the planned change and possible impact.
@@ -95,7 +97,7 @@ List ConfigMaps first to inspect names, labels, annotations, and key names. Use 
 
 ### Create Resource
 
-1. Validate that `metadata.namespace` is `bosgenesis`.
+1. Validate that `metadata.namespace` is one of the allowed namespaces.
 2. Refuse secrets, RBAC resources, service accounts, cluster-scoped resources, privileged pods, host networking, and hostPath volumes.
 3. Use `k8s_create_resource` with `dry_run=true`.
 4. Explain the resource kind, name, namespace, expected impact, and rollback idea.
@@ -104,7 +106,7 @@ List ConfigMaps first to inspect names, labels, annotations, and key names. Use 
 
 ### Update Resource
 
-1. Validate that `metadata.namespace` is `bosgenesis`.
+1. Validate that `metadata.namespace` is one of the allowed namespaces.
 2. Confirm the resource already exists and is supported.
 3. Use `k8s_update_resource` with `dry_run=true`.
 4. Explain what fields will change and expected impact.
@@ -113,7 +115,7 @@ List ConfigMaps first to inspect names, labels, annotations, and key names. Use 
 
 ### Patch Resource
 
-1. Confirm the resource is supported and inside `bosgenesis`.
+1. Confirm the resource is supported and inside one allowed namespace.
 2. Refuse patches that introduce privileged containers, host networking, hostPath, or service account override.
 3. Use `k8s_patch_resource` with `dry_run=true`.
 4. Explain the patch and expected impact.
@@ -156,7 +158,7 @@ List ConfigMaps first to inspect names, labels, annotations, and key names. Use 
 ### PVC Operations
 
 1. Use `k8s_list_pvcs` and `k8s_describe_pvc` for read-only storage inspection.
-2. For create or update, validate the PVC manifest has `kind: PersistentVolumeClaim` and `metadata.namespace: bosgenesis`.
+2. For create or update, validate the PVC manifest has `kind: PersistentVolumeClaim` and an allowed `metadata.namespace`.
 3. Use `k8s_create_pvc`, `k8s_update_pvc`, `k8s_patch_pvc`, `k8s_delete_pvc`, or `k8s_delete_pvc_collection` with `dry_run=true` first.
 4. Explain storage impact, reclaim-policy risk, mounted workloads, and rollback limits before a real mutation.
 5. Ask for confirmation.
@@ -185,6 +187,9 @@ Rules:
 Use these MCP tools:
 
 - `k8s_namespace_summary`
+- `k8s_get_namespace`
+- `k8s_set_namespace`
+- `k8s_get_resource`
 - `k8s_list_pods`
 - `k8s_describe_pod`
 - `k8s_get_pod_logs`
