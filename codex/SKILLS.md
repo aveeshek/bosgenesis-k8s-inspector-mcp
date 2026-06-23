@@ -11,11 +11,13 @@ Use the `bosgenesis_k8s` remote MCP server for BOS Genesis Kubernetes inspection
 
 - Start by calling `k8s_get_namespace` to see the active namespace and allowlist.
 - Operate only inside namespaces returned by `k8s_get_namespace.allowed_namespaces`.
+- Expected PoC allowlist is `bosgenesis`, `signoz`, and `agent-testing`; verify with the tool instead of assuming.
 - Pass the intended `namespace` argument on each MCP call when it is available.
 - Use `k8s_set_namespace` only when the user asks to switch the default namespace or when a test explicitly requires it.
 - Prefer `bosgenesis_k8s` MCP tools over raw `kubectl`.
 - Never inspect or modify resources outside the configured namespace allowlist.
 - Never use cluster-admin access.
+- Keep cluster-scoped deletes blocked. Namespace-scoped deletes require dry-run and explicit confirmation.
 - Never read, list, describe, patch, update, or generically apply Kubernetes Secrets.
 - The only Secret exception is the dedicated ephemeral Secret workflow: create/delete MCP-owned `bosgenesis-mcp-*` Secrets without reading or returning values.
 - Never use pod exec, attach, or port-forward through this skill.

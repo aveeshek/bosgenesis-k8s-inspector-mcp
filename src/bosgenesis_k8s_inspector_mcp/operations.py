@@ -22,6 +22,7 @@ RESOURCE_DEFS: dict[str, tuple[str, str]] = {
     "services": ("v1", "Service"),
     "configmaps": ("v1", "ConfigMap"),
     "persistentvolumeclaims": ("v1", "PersistentVolumeClaim"),
+    "serviceaccounts": ("v1", "ServiceAccount"),
     "deployments": ("apps/v1", "Deployment"),
     "statefulsets": ("apps/v1", "StatefulSet"),
     "daemonsets": ("apps/v1", "DaemonSet"),

@@ -9,6 +9,7 @@ WritableResource = Literal[
     "services",
     "configmaps",
     "persistentvolumeclaims",
+    "serviceaccounts",
     "deployments",
     "statefulsets",
     "daemonsets",

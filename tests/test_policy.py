@@ -41,6 +41,20 @@ def test_agent_testing_namespace_allows_target_writes():
     policy.assert_resource_allowed("deployments", "patch", namespace="agent-testing")
 
 
+def test_serviceaccount_cleanup_allows_only_deletecollection():
+    policy.assert_resource_allowed(
+        "serviceaccounts",
+        "deletecollection",
+        namespace="agent-testing",
+    )
+
+    with pytest.raises(PolicyDeniedError, match="blocked"):
+        policy.assert_resource_allowed("serviceaccounts", "create", namespace="agent-testing")
+
+    with pytest.raises(PolicyDeniedError, match="does not allow writes"):
+        policy.assert_resource_allowed("serviceaccounts", "deletecollection", namespace="signoz")
+
+
 def test_reject_secret_manifest():
     manifest = {
         "apiVersion": "v1",

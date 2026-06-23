@@ -15,6 +15,10 @@ rules:
     verbs: ["get", "list", "watch", "create", "update", "patch", "delete", "deletecollection"]
   - apiGroups: [""]
     resources:
+      - serviceaccounts
+    verbs: ["delete", "deletecollection"]
+  - apiGroups: [""]
+    resources:
       - pods/log
     verbs: ["get", "list"]
   - apiGroups: [""]

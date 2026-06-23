@@ -36,6 +36,8 @@ DETAIL_READ_BLOCKED_KINDS = {
     "ValidatingWebhookConfiguration",
 }
 
+DELETE_COLLECTION_CLEANUP_ALLOWED_RESOURCES = {"serviceaccounts"}
+
 
 class NamespacePolicy:
     def __init__(self) -> None:
@@ -67,6 +69,17 @@ class NamespacePolicy:
     ) -> None:
         resource = resource.lower()
         verb = verb.lower()
+        if (
+            resource in DELETE_COLLECTION_CLEANUP_ALLOWED_RESOURCES
+            and verb == "deletecollection"
+        ):
+            if namespace is not None:
+                access_mode = config.namespace_access_mode(namespace)
+                if access_mode not in {"read_write", "write"}:
+                    raise PolicyDeniedError(
+                        f"Namespace '{namespace}' is configured as '{access_mode}' and does not allow writes."
+                    )
+            return
         if resource in self.blocked_resources or resource in self.blocked_subresources:
             raise PolicyDeniedError(f"Resource '{resource}' is blocked by policy.")
         if verb in {"get", "list", "watch", "read", "logs"}:
